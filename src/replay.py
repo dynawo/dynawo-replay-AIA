@@ -25,9 +25,9 @@ def gen_table(csvfile, output_dir):
             UPhase = np.arctan2(cols[terminal+'_V_im'], cols[terminal+'_V_re'])
             terminal = terminal.replace(' ', '-') # need to remove spaces in column names in table
             f.write("\ndouble {}({},2)\n".format(terminal+'_U', len(U)))
-            np.savetxt(f, np.array([time, U]).T, fmt='%f')
+            np.savetxt(f, np.array([time, U]).T, fmt='%.10f')
             f.write("\ndouble {}({},2)\n".format(terminal+'_UPhase', len(U)))
-            np.savetxt(f, np.array([time, UPhase]).T, fmt='%f')
+            np.savetxt(f, np.array([time, UPhase]).T, fmt='%.10f')
             # np.savetxt(f, df[["time",col]].values, fmt='%f')
     # shutil.copy(tablefile, output_dir+'table.txt')
 
@@ -241,9 +241,9 @@ def remove_namespaces(file, tag):
     os.system("sed -i 's/<{}:/</g' {}".format(tag, file))
     os.system("sed -i 's/<\\/{}:/<\\//g' {}".format(tag, file))
 
-def gen_replay_files(root_dir, model, output_dir = 'replay/'):
+def gen_replay_files(root_dir, model, terminals_csv, output_dir = 'replay/'):
     os.makedirs(output_dir, exist_ok = True)
-    gen_table(root_dir+'outputs/curves/terminals_curves.csv', output_dir)
+    gen_table(terminals_csv, output_dir)
     # gen_table(csvfile, output_dir)
     in_jobs, in_par, in_dyd, in_iidm, in_crv = [root_dir+model+x for x in ['.jobs', '.par', '.dyd',  '.iidm', '.crv']]
     out_jobs, out_par, out_dyd, out_crv = [output_dir+model+x for x in ['.jobs', '.par', '.dyd', '.crv']]
@@ -262,4 +262,5 @@ def gen_replay_files(root_dir, model, output_dir = 'replay/'):
     gen_jobs(system, out_jobs)
     gen_dyd(system, out_dyd)
     gen_par(system, out_par)
+    os.system("cp {}*_replay.crv {}/{}.crv".format(root_dir, output_dir, model))
     return system
