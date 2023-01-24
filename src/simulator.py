@@ -66,14 +66,18 @@ def plot_csv(csvfile, outputfile, title="Simulation"):
     plt.savefig(outputfile, dpi=300)
     plt.close('all')
 
-def run_simulation(jobspath, crvfile, outdir):
-    os.makedirs(outdir, exist_ok=True)
+def run_simulation(jobspath, crvfile, outdir, cd_dir = False):
     name = subprocess.getoutput('basename '+jobspath).split('.')[0]
     dir = subprocess.getoutput('dirname '+jobspath)+'/'
     change_curve_file(jobspath, crvfile)
     add_logs(jobspath)
-    os.system('dynawo-RTE_master_2022-11-03 jobs '+jobspath)
-    os.system('cp -rf {}/outputs/* {}/'.format(dir,outdir))
+    cd = ''
+    if cd_dir:
+        cd = 'cd '+dir+' && '
+    os.system(cd+'dynawo-RTE_master_2022-11-03 jobs '+jobspath)
+    if outdir:
+        os.makedirs(outdir, exist_ok=True)
+        os.system('cp -rf {}/outputs/* {}/'.format(dir,outdir))
     logging.info('ran simulation')
 
 def replay(jobspath, crvfile, terminals_csv, outdir):
@@ -82,7 +86,8 @@ def replay(jobspath, crvfile, terminals_csv, outdir):
     os.makedirs(outdir+'/outputs', exist_ok=True)
     gen_replay_files(dir, name, terminals_csv, outdir)
     print(outdir+name+'.jobs')
-    run_simulation(outdir+name+'.jobs', crvfile, outdir+'/outputs')
+    outdir = os.path.abspath(outdir)+'/'
+    run_simulation(outdir+name+'.jobs', crvfile, '', cd_dir = True)
 
 def runner(jobsfile, output_dir = "replay/", run_original = True, gen_curves = True, gen_csv = True):
     error = {}
@@ -104,7 +109,7 @@ def runner(jobsfile, output_dir = "replay/", run_original = True, gen_curves = T
     # begin pipeline execution
     print("\n***\n"+jobsfile+"\n***\n")
     if run_original:
-        run_simulation(jobsfile, name+".crv", simulation_outdir+'/original/')
+        run_simulation(jobsfile, name+"_replay.crv", simulation_outdir+'/original/')
     if gen_curves:
         print("Generating curves")
         gen_all_curves(jobsfile, target = 'terminals', newvarlogs = True)
