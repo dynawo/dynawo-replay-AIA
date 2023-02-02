@@ -76,6 +76,8 @@ def get_solver_params(jobsfile, parfile, system, tagPrefix = ''):
     system['solver'] = [x for x in parsets if solver.attributes['parId'].value == x.attributes['id'].value][0]
 
 def get_refs(generators, parsets, iidmfile):
+    if not os.path.isfile(iidmfile):
+        return 0
     iidm = minidom.parse(iidmfile)
     iidm_generators = iidm.getElementsByTagName('iidm:generator')
     for s in parsets:
@@ -197,13 +199,24 @@ def gen_par(system, output):
     <par name="infiniteBus_TableFile" type="STRING" value="table.txt"/>
   </set>
   {% endfor -%}
-  {{ system['solver'].toxml() }}
+
+   <set id="IDAOrder2">
+    <par type="INT" name="order" value="2"/>
+    <par type="DOUBLE" name="initStep" value="1e-9"/>
+    <par type="DOUBLE" name="minStep" value="1e-9"/>
+    <par type="DOUBLE" name="maxStep" value="1"/>
+    <par type="DOUBLE" name="absAccuracy" value="1e-6"/>
+    <par type="DOUBLE" name="relAccuracy" value="1e-6"/>
+    <par type="DOUBLE" name="minimalAcceptableStep" value="1e-10"/>
+    <par type="INT" name="maximumNumberSlowStepIncrease" value="40"/>
+  </set>
 </parametersSet>
     """
     template = jinja2.Template(template_src)
     with open(output, 'w') as f:
         f.write(template.render( system=system, parlist=parlist))
 
+  # {{ system['solver'].toxml() }}
     # {% for param in modelpars.getElementsByTagName('reference') -%}
     # <par name="{{param.attributes['name'].value}}" type="{{param.attributes['type'].value}}" value="1"/>  
     # {% endfor -%}
