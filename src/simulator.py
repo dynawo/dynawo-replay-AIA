@@ -56,15 +56,6 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-def plot_csv(csvfile, outputfile, title="Simulation"):
-    df = pd.read_csv(csvfile, sep=';')
-    t = df.iloc[:,0]
-    df = df.iloc[:,1:-1]
-    plt.plot(t, df)
-    plt.xlabel('Time (s)')
-    plt.title(title)
-    plt.savefig(outputfile, dpi=300)
-    plt.close('all')
 
 def run_simulation(jobspath, crvfile, outdir, cd_dir = False):
     name = subprocess.getoutput('basename '+jobspath).split('.')[0]
@@ -88,6 +79,43 @@ def replay(jobspath, crvfile, terminals_csv, outdir):
     print(outdir+name+'.jobs')
     outdir = os.path.abspath(outdir)+'/'
     run_simulation(outdir+name+'.jobs', crvfile, '', cd_dir = True)
+
+# def original_vs_table(original_csv, table):
+
+def plot_csv(csvfile, outputfile, title="Simulation", num_curves=5):
+    df = pd.read_csv(csvfile, sep=';')
+    t = df.iloc[:,0]
+    df = df.iloc[:,1:-1]
+    N = df.shape[1]
+    if num_curves:
+        N = num_curves
+    # df = df.iloc[:,0:N]
+    # plt.plot(t, df)
+    # df.plot()
+    plt.plot(t, df.iloc[:,0:N])
+    plt.legend(df.columns[0:N])
+    plt.xlabel('Time (s)')
+    # plt.xlabel('Sample')
+    plt.title(title)
+    plt.savefig(outputfile, dpi=300)
+    plt.close('all')
+
+def original_vs_replay(original_csv, replay_csv, outputfile, title="Simulation"):
+    df = pd.read_csv(original_csv, sep=';')
+    t = df.iloc[:,0]
+    df = df.iloc[:,1:-1]
+    df2 = pd.read_csv(replay_csv, sep=';')
+    t2 = df2.iloc[:,0]
+    df2 = df2.iloc[:,1:-1]
+    print(df.shape, df2.shape)
+    for i,c in enumerate(df.columns):
+        plt.plot(t, df.iloc[:,i], label='original')
+        plt.plot(t2, df2.iloc[:,i], label='replay', linestyle='--')
+        plt.xlabel('Time (s)')
+        plt.title(title+ ' '+c)
+        # plt.legend()
+        plt.savefig(outputfile+'/'+c+'.png', dpi=300)
+        plt.close('all')
 
 def runner(jobsfile, output_dir = "replay/", run_original = True, gen_curves = True, gen_csv = True):
     error = {}
@@ -126,17 +154,21 @@ def runner(jobsfile, output_dir = "replay/", run_original = True, gen_curves = T
 
     plot_csv(original_csv, simulation_outdir+'{}_original.png'.format(name), title=name+' Original')
     plot_csv(replay_csv, simulation_outdir+'{}_replay.png'.format(name), title=name+' Replay')
+    original_vs_replay(original_csv, replay_csv, simulation_outdir, title=name+' Original vs Replay')
     return error, compression
 
 root_dir='examples_copy/DynaSwing'
 root_dir='../data/examples/DynaSwing/WSCC9/WSCC9_Fault/WSCC9.jobs'
-root_dir='../data/examples/DynaSwing/IEEE57/IEEE57_Fault/IEEE57.jobs'
-# root_dir='examples_copy/DynaSwing/IEEE14/IEEE14_Fault/'
+root_dir='../data/IEEE57/IEEE57_Fault/IEEE57.jobs'
+# root_dir='../data/smallcase/IEEE57.jobs'
+# root_dir='../data/FicheI3SM/FicheI3SM.jobs'
+# root_dir='../data/Kundur_Example13/KundurExample13.jobs'
+# root_dir='../data/examples/DynaSwing/IEEE14/IEEE14_Fault/IEEE14.jobs'
 # root_dir='examples_copy/DynaSwing/GridForming_GridFollowing/DisconnectLine/'
-# root_dir='largecase/tFin/'
+# root_dir='../data/largecase/tFin/fic.jobs'
 output_dir='replay/'
 gen_curves = True
 gen_csv = True
 
 runner(root_dir, output_dir, run_original = True, gen_curves = True, gen_csv = True)
-# replay(root_dir, output_dir, run_original = False, gen_curves = False, gen_csv = False)
+# runner(root_dir, output_dir, run_original = False, gen_curves = False, gen_csv = False)

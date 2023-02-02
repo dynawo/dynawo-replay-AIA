@@ -1,0 +1,22 @@
+<?xml version="1.0" ?><jobs xmlns="http://www.rte-france.com/dynawo">
+  <job name="Fiche I3  - Synchronous Machine">
+    <solver lib="dynawo_SolverIDA" parFile="FicheI3SM.par" parId="IDA"/>
+    <modeler compileDir="outputs/compilation">
+      <dynModels dydFile="FicheI3SM.dyd"/>
+      <dynModels dydFile="Producer.dyd"/>
+      <precompiledModels useStandardModels="true">
+        <directory path="../../../.config/dmv/ddb" recursive="false"/>
+      </precompiledModels>
+      <modelicaModels useStandardModels="true">
+        <directory path="." recursive="false"/>
+      </modelicaModels>
+    </modeler>
+    <simulation startTime="0" stopTime="100"/>
+    <outputs directory="outputs">
+      <timeline exportMode="XML"/>
+      <finalState exportIIDMFile="true" exportDumpFile="false"/>
+      <curves inputFile="FicheI3SM_terminals.crv" exportMode="CSV"/>
+      
+    <logs><appender tag="" file="dynawo.log" lvlFilter="DEBUG"/><appender tag="VARIABLES" file="dynawoVariables.log" lvlFilter="DEBUG"/></logs></outputs>
+  </job>
+</jobs>

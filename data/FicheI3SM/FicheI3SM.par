@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<parametersSet xmlns="http://www.rte-france.com/dynawo">
+  <set id="InfiniteBus">
+    <par type="DOUBLE" name="infiniteBus_UPu" value="1.0867"/>
+    <par type="DOUBLE" name="infiniteBus_UPhase" value="0.0"/>
+  </set>
+  <set id="Line1">
+    <par type="DOUBLE" name="line_RPu" value="0.0"/>
+    <par type="DOUBLE" name="line_XPu" value="0.2123"/>
+    <par type="DOUBLE" name="line_BPu" value="0.0"/>
+    <par type="DOUBLE" name="line_GPu" value="0.0"/>
+  </set>
+  <set id="Line2">
+    <par type="DOUBLE" name="line_RPu" value="0.0"/>
+    <par type="DOUBLE" name="line_XPu" value="0.2123"/>
+    <par type="DOUBLE" name="line_BPu" value="0.0"/>
+    <par type="DOUBLE" name="line_GPu" value="0.0"/>
+  </set>
+  <set id="Line3">
+    <par type="DOUBLE" name="line_RPu" value="0.0"/>
+    <par type="DOUBLE" name="line_XPu" value="0.2123"/>
+    <par type="DOUBLE" name="line_BPu" value="0.0"/>
+    <par type="DOUBLE" name="line_GPu" value="0.0"/>
+  </set>
+  <set id="DisconnectLine">
+    <par type="DOUBLE" name="event_tEvent" value="20"/>
+    <par type="BOOL" name="event_stateEvent1" value="true"/>
+  </set>
+  <set id="OmegaRef">
+    <par type="INT" name="nbGen" value="2"/>
+    <par type="DOUBLE" name="weight_gen_0" value="1e-16"/>
+    <par type="DOUBLE" name="weight_gen_1" value="1"/>
+  </set>
+  <set id="SetPointNumcc">
+    <par type="DOUBLE" name="setPointNumcc_Value0" value="0"/>
+  </set>
+  <set id="SetPointOmega">
+    <par type="DOUBLE" name="setPointOmega_Value0" value="1"/>
+  </set>
+  <!-- IDA order 2 solver -->
+  <set id="IDA">
+    <par type="INT" name="order" value="2"/>
+    <par type="DOUBLE" name="initStep" value="1e-9"/>
+    <par type="DOUBLE" name="minStep" value="1e-9"/>
+    <par type="DOUBLE" name="maxStep" value="1"/>
+    <par type="DOUBLE" name="absAccuracy" value="1e-6"/>
+    <par type="DOUBLE" name="relAccuracy" value="1e-6"/>
+    <par type="DOUBLE" name="minimalAcceptableStep" value="1e-10"/>
+    <par type="INT" name="maximumNumberSlowStepIncrease" value="40"/>
+  </set>
+</parametersSet>

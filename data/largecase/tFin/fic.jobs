@@ -1,0 +1,20 @@
+<?xml version="1.0" ?><jobs xmlns="http://www.rte-france.com/dynawo">
+    <job name="recollement-auto-20200527-1700_tFin">
+        <solver lib="dynawo_SolverSIM" parFile="fic.par" parId="0"/>
+        <modeler compileDir="outputs/compilation">
+            <network iidmFile="fic.iidm" parFile="fic.par" parId="1"/>
+            <dynModels dydFile="fic.dyd"/>
+            <initialState file="outputState.dmp"/>
+            <precompiledModels useStandardModels="true"/>
+            <modelicaModels useStandardModels="true"/>
+        </modeler>
+        <simulation startTime="4000" stopTime="5200"/>
+        <outputs directory="outputs">
+            <constraints exportMode="XML"/>
+            <timeline exportMode="XML"/>
+            <finalState exportIIDMFile="true" exportDumpFile="true"/>
+            <curves inputFile="fic_terminals.crv" exportMode="CSV"/>
+            
+        <logs><appender tag="" file="dynawo.log" lvlFilter="DEBUG"/><appender tag="VARIABLES" file="dynawoVariables.log" lvlFilter="DEBUG"/></logs></outputs>
+    </job>
+</jobs>

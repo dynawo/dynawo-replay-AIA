@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dyn:dynamicModelsArchitecture xmlns:dyn="http://www.rte-france.com/dynawo">
+  <!-- Producer -->
+  <dyn:blackBoxModel id="Transformer" lib="TransformerFixedRatio" parFile="Producer.par" parId="Transformer"/>
+  <dyn:blackBoxModel id="SynchronousGenerator" lib="GeneratorSynchronousFourWindingsTGov1SexsPss2A" parFile="Producer.par" parId="SynchronousGenerator"/>
+  <dyn:blackBoxModel id="Load" lib="LoadPQ" parFile="Producer.par" parId="Load"/>
+  <dyn:connect id1="Transformer" var1="transformer_terminal1" id2="BusPDR" var2="bus_terminal"/>
+  <dyn:connect id1="Load" var1="load_terminal" id2="Transformer" var2="transformer_terminal2"/>
+  <dyn:connect id1="SynchronousGenerator" var1="generator_terminal" id2="Transformer" var2="transformer_terminal2"/>
+</dyn:dynamicModelsArchitecture>

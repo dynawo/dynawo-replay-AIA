@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<curvesInput xmlns="http://www.rte-france.com/dynawo">
+<curve model="B5-L1 " variable="load_terminal_V_im"/>
+<curve model="B5-L1 " variable="load_terminal_V_re"/>
+<curve model="B5-L1 " variable="load_terminal_i_im"/>
+<curve model="B5-L1 " variable="load_terminal_i_re"/>
+<curve model="B6-L1 " variable="load_terminal_V_im"/>
+<curve model="B6-L1 " variable="load_terminal_V_re"/>
+<curve model="B6-L1 " variable="load_terminal_i_im"/>
+<curve model="B6-L1 " variable="load_terminal_i_re"/>
+<curve model="B8-L1 " variable="load_terminal_V_im"/>
+<curve model="B8-L1 " variable="load_terminal_V_re"/>
+<curve model="B8-L1 " variable="load_terminal_i_im"/>
+<curve model="B8-L1 " variable="load_terminal_i_re"/>
+<curve model="B1-G1 " variable="generator_terminal_V_im"/>
+<curve model="B1-G1 " variable="generator_terminal_V_re"/>
+<curve model="B1-G1 " variable="generator_terminal_i_im"/>
+<curve model="B1-G1 " variable="generator_terminal_i_re"/>
+<curve model="B2-G1 " variable="generator_terminal_V_im"/>
+<curve model="B2-G1 " variable="generator_terminal_V_re"/>
+<curve model="B2-G1 " variable="generator_terminal_i_im"/>
+<curve model="B2-G1 " variable="generator_terminal_i_re"/>
+<curve model="B3-G1 " variable="generator_terminal_V_im"/>
+<curve model="B3-G1 " variable="generator_terminal_V_re"/>
+<curve model="B3-G1 " variable="generator_terminal_i_im"/>
+<curve model="B3-G1 " variable="generator_terminal_i_re"/>
+<curve model="FAULT_GEN_2" variable="fault_terminal_V_im"/>
+<curve model="FAULT_GEN_2" variable="fault_terminal_V_re"/>
+<curve model="FAULT_GEN_2" variable="fault_terminal_i_im"/>
+<curve model="FAULT_GEN_2" variable="fault_terminal_i_re"/>
+</curvesInput>

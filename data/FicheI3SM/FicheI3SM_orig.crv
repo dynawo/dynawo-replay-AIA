@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<curvesInput xmlns="http://www.rte-france.com/dynawo">
+  <curve model="BusPDR" variable="bus_terminal_V_re"/>
+  <curve model="BusPDR" variable="bus_terminal_V_im"/>
+  <curve model="Line1" variable="line_P2Pu"/>
+  <curve model="Line1" variable="line_Q2Pu"/>
+  <curve model="Line2" variable="line_P2Pu"/>
+  <curve model="Line2" variable="line_Q2Pu"/>
+  <curve model="Line3" variable="line_P2Pu"/>
+  <curve model="Line3" variable="line_Q2Pu"/>
+  <curve model="Transformer" variable="transformer_terminal2_V_re"/>
+  <curve model="Transformer" variable="transformer_terminal2_V_im"/>
+  <curve model="SynchronousGenerator" variable="generator_omegaPu"/>
+  <curve model="SynchronousGenerator" variable="generator_theta"/>
+  <curve model="SynchronousGenerator" variable="generator_thetaInternal"/>
+  <curve model="SynchronousGenerator" variable="voltageRegulator_UsRefPu"/>
+  <curve model="SynchronousGenerator" variable="generator_UStatorPu_value"/>
+  <curve model="OmegaRef" variable="omega_grp_0"/>
+  <curve model="OmegaRef" variable="omegaRef_grp_0"/>
+</curvesInput>
+
