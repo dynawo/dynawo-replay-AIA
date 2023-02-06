@@ -38,7 +38,7 @@ def get_jobs_config(jobsfile):
     system['simulation'] = {'startTime': simulation.attributes['startTime'].value, 'stopTime': simulation.attributes['stopTime'].value}
     return system
 
-def get_generators(dydfile, models, tagPrefix = 'dyn:'):
+def get_generators(dydfile, tagPrefix = 'dyn:'):
     file = minidom.parse(dydfile)
     models = file.getElementsByTagName(tagPrefix+'blackBoxModel')   
     generators = [ x for x in models if 'Generator' in x.attributes['lib'].value]

@@ -174,6 +174,15 @@ def change_curve_file(jobsfile, curvefilename, tag_prefix = ''):
         file.writexml(out)
         out.close()
 
+def change_jobs_file(jobsfile, dydfilename, tag_prefix = ''):
+    file = minidom.parse(jobsfile)
+    models = file.getElementsByTagName(tag_prefix+'dynModels')[0]
+    models.setAttribute('dydFile', dydfilename)
+    with open(jobsfile, 'w') as out:
+        # out.write(file.toprettyxml())
+        file.writexml(out)
+        out.close()
+
 
 def gen_all_curves(jobsfile, target = "states", newvarlogs = False, recursive=True):
     name = subprocess.getoutput('basename '+jobsfile).split('.')[0]
