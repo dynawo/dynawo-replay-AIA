@@ -6,6 +6,7 @@ from xml.dom import minidom
 from allcurves import *
 from replay import *
 import logging, datetime
+from pathlib import Path
 
 logging.basicConfig(
     filename='simulations/simulation.log',
@@ -65,20 +66,44 @@ def run_simulation(jobspath, crvfile, outdir, cd_dir = False):
     cd = ''
     if cd_dir:
         cd = 'cd '+dir+' && '
+    logging.info('simulation start')
     os.system(cd+'dynawo-RTE_master_2022-11-03 jobs '+jobspath)
+    logging.info('simulation end')
     if outdir:
         os.makedirs(outdir, exist_ok=True)
         os.system('cp -rf {}/outputs/* {}/'.format(dir,outdir))
-    logging.info('ran simulation')
 
-def replay(jobspath, crvfile, terminals_csv, outdir):
+def replay(jobspath, crvfile, terminals_csv, outdir, single_gen = True):
     name = subprocess.getoutput('basename '+jobspath).split('.')[0]
     dir = subprocess.getoutput('dirname '+jobspath)+'/'
     os.makedirs(outdir+'/outputs', exist_ok=True)
     gen_replay_files(dir, name, terminals_csv, outdir)
-    print(outdir+name+'.jobs')
     outdir = os.path.abspath(outdir)+'/'
-    run_simulation(outdir+name+'.jobs', crvfile, '', cd_dir = True)
+    if single_gen:
+        replay_single_generators(name, outdir)
+    else:
+        run_simulation(outdir+name+'.jobs', crvfile, '', cd_dir = True)
+
+def replay_single_generators(name, outdir):
+    dydfile = outdir+name+'.dyd'
+    crvfile = outdir+name+'.crv'
+    file = minidom.parse(dydfile)
+    generators = get_generators(dydfile)
+    gen_ids = []
+    for gen in generators:
+        system = {}
+        system['generators'] = {gen : generators[gen]}
+        system['name'] = name
+        gen_id = generators[gen]['dyd'].attributes['id'].value
+        gen_ids.append(gen_id)
+        gen_dydfile = outdir+'/'+gen_id +'_gen.dyd'
+        gen_jobsfile = outdir+name+'.jobs'
+        gen_dyd(system, gen_dydfile)
+        change_jobs_file(gen_jobsfile, gen_dydfile)
+        run_simulation(gen_jobsfile, crvfile, outdir+gen_id, cd_dir = True)
+        logging.info("Replay generator " + gen_id)
+    with open(outdir+'generators.txt', 'w') as f:
+        f.write('\n'.join(gen_ids))
 
 # def original_vs_table(original_csv, table):
 
@@ -100,27 +125,37 @@ def plot_csv(csvfile, outputfile, title="Simulation", num_curves=5):
     plt.savefig(outputfile, dpi=300)
     plt.close('all')
 
-def original_vs_replay(original_csv, replay_csv, outputfile, title="Simulation"):
+def original_vs_replay(original_csv, replay_csv, outputdir, title="Simulation"):
     df = pd.read_csv(original_csv, sep=';')
     t = df.iloc[:,0]
     df = df.iloc[:,1:-1]
     df2 = pd.read_csv(replay_csv, sep=';')
     t2 = df2.iloc[:,0]
     df2 = df2.iloc[:,1:-1]
-    print(df.shape, df2.shape)
-    for i,c in enumerate(df.columns):
-        plt.plot(t, df.iloc[:,i], label='original')
-        plt.plot(t2, df2.iloc[:,i], label='replay', linestyle='--')
+    for c in df2.columns:
+        plt.plot(t, df[c], label='original')
+        plt.plot(t2, df2[c], label='replay', linestyle='--')
         plt.xlabel('Time (s)')
         plt.title(title+ ' '+c)
-        # plt.legend()
-        plt.savefig(outputfile+'/'+c+'.png', dpi=300)
+        plt.legend()
+        plt.savefig(outputdir+'/'+c+'.png', dpi=300)
         plt.close('all')
 
-def runner(jobsfile, output_dir = "replay/", run_original = True, gen_curves = True, gen_csv = True):
+def original_vs_replay_generators(original_csv, replay_dir):
+    """ Plot original and replayed curves for each generator in replay_dir """
+    with open(replay_dir+'generators.txt') as file:
+        generators = [line.rstrip() for line in file]
+    for gen in generators:
+        gen_dir = "{}/{}/".format(replay_dir, gen)
+        fig_dir = replay_dir+'/fig/'+gen+'/'
+        os.makedirs(fig_dir, exist_ok=True)
+        original_vs_replay(original_csv, gen_dir+'/curves/curves.csv', fig_dir, title=gen)
+        
+    
+
+def runner(jobsfile, output_dir = "replay/", run_original = True, gen_curves = True, gen_csv = True, single_gen = True):
     error = {}
     compression = {}
-    print(jobsfile)
     start = datetime.datetime.now()
     logging.info("\nExecution of " + jobsfile + " started at " + str(start))
     name = subprocess.getoutput('basename '+jobsfile).split('.')[0]
@@ -138,37 +173,46 @@ def runner(jobsfile, output_dir = "replay/", run_original = True, gen_curves = T
     print("\n***\n"+jobsfile+"\n***\n")
     if run_original:
         run_simulation(jobsfile, name+"_replay.crv", simulation_outdir+'/original/')
+        logging.info("Original simulation done")
     if gen_curves:
-        print("Generating curves")
+        print("\nGenerating curves")
         gen_all_curves(jobsfile, target = 'terminals', newvarlogs = True)
         logging.info('generated .crv for all terminals')
     if gen_csv:
-        print("Generating CSV with terminal curves")
+        print("\nGenerating CSV with terminal curves")
         run_simulation(jobsfile, name+"_terminals.crv", simulation_outdir+'/terminals/')
-    print("Replaying")
+        logging.info("Generated CSV with terminal curves")
+    print("\nReplaying")
     terminals_csv = simulation_outdir+'/terminals/curves/curves.csv'
     original_csv = simulation_outdir+'/original/curves/curves.csv'
     replay_csv = simulation_outdir+'/replay/outputs/curves/curves.csv'
 
-    replay(jobsfile, name+".crv", terminals_csv, simulation_outdir+'/replay/')
 
-    plot_csv(original_csv, simulation_outdir+'{}_original.png'.format(name), title=name+' Original')
-    plot_csv(replay_csv, simulation_outdir+'{}_replay.png'.format(name), title=name+' Replay')
-    original_vs_replay(original_csv, replay_csv, simulation_outdir, title=name+' Original vs Replay')
+    if single_gen:
+        replay(jobsfile, name+".crv", terminals_csv, simulation_outdir+'/replay/', single_gen = True)
+        logging.info("Finished replay")
+        original_vs_replay_generators(original_csv, simulation_outdir+'/replay/')
+    else:
+        replay(jobsfile, name+".crv", terminals_csv, simulation_outdir+'/replay/', single_gen = False)
+        logging.info("Finished replay")
+        plot_csv(original_csv, simulation_outdir+'{}_original.png'.format(name), title=name+' Original')
+        plot_csv(replay_csv, simulation_outdir+'{}_replay.png'.format(name), title=name+' Replay')
+        original_vs_replay(original_csv, replay_csv, simulation_outdir, title=name+' Original vs Replay')
     return error, compression
 
 root_dir='examples_copy/DynaSwing'
-root_dir='../data/examples/DynaSwing/WSCC9/WSCC9_Fault/WSCC9.jobs'
-root_dir='../data/IEEE57/IEEE57_Fault/IEEE57.jobs'
+# root_dir='../data/examples/DynaSwing/WSCC9/WSCC9_Fault/WSCC9.jobs'
+# root_dir='../data/IEEE57/IEEE57_Fault/IEEE57.jobs'
 # root_dir='../data/smallcase/IEEE57.jobs'
 # root_dir='../data/FicheI3SM/FicheI3SM.jobs'
 # root_dir='../data/Kundur_Example13/KundurExample13.jobs'
-# root_dir='../data/examples/DynaSwing/IEEE14/IEEE14_Fault/IEEE14.jobs'
+root_dir='../data/examples/DynaSwing/IEEE14/IEEE14_Fault/IEEE14.jobs'
 # root_dir='examples_copy/DynaSwing/GridForming_GridFollowing/DisconnectLine/'
 # root_dir='../data/largecase/tFin/fic.jobs'
 output_dir='replay/'
 gen_curves = True
 gen_csv = True
 
-runner(root_dir, output_dir, run_original = True, gen_curves = True, gen_csv = True)
+if __name__ == '__main__':
+    runner(root_dir, output_dir, run_original = True, gen_curves = True, gen_csv = True)
 # runner(root_dir, output_dir, run_original = False, gen_curves = False, gen_csv = False)
