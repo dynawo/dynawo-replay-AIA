@@ -6,11 +6,11 @@ from xml.dom import minidom
 from allcurves import *
 import logging, datetime
 
-logging.basicConfig(
-    filename='replay.log', 
-    format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    datefmt='%Y-%m-%d %H:%M:%S')
+# logging.basicConfig(
+#     filename='replay.log', 
+#     format='%(asctime)s %(levelname)-8s %(message)s',
+#     level=logging.INFO,
+#     datefmt='%Y-%m-%d %H:%M:%S')
 
 def gen_table(csvfile, output_dir):
     os.system('rm '+output_dir+'table.txt')

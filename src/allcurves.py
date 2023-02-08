@@ -8,11 +8,11 @@ import logging, datetime
 from xml.dom import minidom
 from sklearn.utils.extmath import randomized_svd
 
-logging.basicConfig(
-    filename='execution.log', 
-    format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    datefmt='%Y-%m-%d %H:%M:%S')
+# logging.basicConfig(
+#     filename='execution.log', 
+#     format='%(asctime)s %(levelname)-8s %(message)s',
+#     level=logging.INFO,
+#     datefmt='%Y-%m-%d %H:%M:%S')
 
 def add_logs(jobsfilename, tagPrefix = ''):
     file = minidom.parse(jobsfilename)
