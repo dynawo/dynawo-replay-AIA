@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<curvesInput xmlns="http://www.rte-france.com/dynawo">
+<curve model="InfiniteBus" variable="infiniteBus_terminal_i_im"/>
+<curve model="InfiniteBus" variable="infiniteBus_terminal_i_re"/>
+<curve model="InfiniteBus" variable="infiniteBus_terminal_V_im_connector_InfiniteBus_infiniteBus_terminal_V_im"/>
+<curve model="InfiniteBus" variable="infiniteBus_terminal_V_re_connector_InfiniteBus_infiniteBus_terminal_V_re"/>
+<curve model="Transformer" variable="transformer_terminal1_V_im"/>
+<curve model="Transformer" variable="transformer_terminal1_V_re"/>
+<curve model="Transformer" variable="transformer_terminal2_V_im"/>
+<curve model="Transformer" variable="transformer_terminal2_V_re"/>
+<curve model="Transformer" variable="transformer_terminal1_i_im"/>
+<curve model="Transformer" variable="transformer_terminal1_i_re"/>
+<curve model="Transformer" variable="transformer_terminal2_i_im"/>
+<curve model="Transformer" variable="transformer_terminal2_i_re"/>
+<curve model="Line1" variable="line_terminal1_V_im"/>
+<curve model="Line1" variable="line_terminal1_V_re"/>
+<curve model="Line1" variable="line_terminal2_V_im"/>
+<curve model="Line1" variable="line_terminal2_V_re"/>
+<curve model="Line1" variable="line_terminal1_i_im"/>
+<curve model="Line1" variable="line_terminal1_i_re"/>
+<curve model="Line1" variable="line_terminal2_i_im"/>
+<curve model="Line1" variable="line_terminal2_i_re"/>
+<curve model="Load" variable="load_terminal_V_im"/>
+<curve model="Load" variable="load_terminal_V_re"/>
+<curve model="Load" variable="load_terminal_i_im"/>
+<curve model="Load" variable="load_terminal_i_re"/>
+<curve model="Fault" variable="fault_terminal_V_im"/>
+<curve model="Fault" variable="fault_terminal_V_re"/>
+<curve model="Fault" variable="fault_terminal_i_im"/>
+<curve model="Fault" variable="fault_terminal_i_re"/>
+<curve model="SynchronousGenerator" variable="generator_terminal_V_im"/>
+<curve model="SynchronousGenerator" variable="generator_terminal_V_re"/>
+<curve model="SynchronousGenerator" variable="generator_terminal_i_im"/>
+<curve model="SynchronousGenerator" variable="generator_terminal_i_re"/>
+<curve model="SynchronousGenerator" variable="generator_omegaRefPu_value"/>
+</curvesInput>
