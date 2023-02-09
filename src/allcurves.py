@@ -8,12 +8,6 @@ import logging, datetime
 from xml.dom import minidom
 from sklearn.utils.extmath import randomized_svd
 
-# logging.basicConfig(
-#     filename='execution.log', 
-#     format='%(asctime)s %(levelname)-8s %(message)s',
-#     level=logging.INFO,
-#     datefmt='%Y-%m-%d %H:%M:%S')
-
 def add_logs(jobsfilename, tagPrefix = ''):
     file = minidom.parse(jobsfilename)
     logs = file.getElementsByTagName(tagPrefix+'logs')   
@@ -36,7 +30,6 @@ def add_logs(jobsfilename, tagPrefix = ''):
         # out.write(file.toprettyxml())
         file.writexml(out)
         out.close()
-
 
 def compress_and_save(df, name, target = 'states', outpath = 'results', ranks=[10], randomized = True):
     df = np.array(df.iloc[:,1:-1]).T
@@ -195,29 +188,9 @@ def gen_all_curves(jobsfile, target = "states", newvarlogs = False, recursive=Tr
     states = subprocess.getoutput("""sed -n '/X variables$/,/alias/p' {} | sed 's/.* DEBUG | [0-9]\+ \\(.*\\)/\\1/p' >> {}/states.txt """.format(logfile, dir))
     terminals = subprocess.getoutput(""" sed -n '/X variables$/,/alias/p' {} | sed '/terminal/!d' | sed 's/.* DEBUG | [0-9]\+ \\(.*\\)/\\1/p' >>  {}/terminals.txt """.format(logfile, dir))
     os.system(""" sed -n '/X variables$/,/alias/p' {} | sed '/omegaRefPu/!d' | sed 's/.* DEBUG | [0-9]\+ \\(.*\\)/\\1/p' >>  {}/terminals.txt """.format(logfile, dir))
-    print(subprocess.getoutput(""" sed -n '/X variables$/,/alias/p' {} | sed '/omegaRefPu/!d' | sed 's/.* DEBUG | [0-9]\+ \\(.*\\)/\\1/p'""".format(logfile, dir)))
     dydfile = dir + '/{}.dyd'.format(name)
     models = subprocess.getoutput("""sed -n 's/.*id="\\([^"]*\\).*/\\1/p' {} > {}/models.txt """.format(dydfile, dir))
     os.system('sh genallcrv.sh {}/models.txt {}/{}.txt'.format(dir, dir, target))
-    os.system('mv allcurves.crv {}/{}_{}.crv'.format(dir, target, name))
+    os.system('mv allcurves.crv {}/{}_{}.crv'.format(dir, name, target))
     logging.info('generated allcurves_{}.crv'.format(target))
 
-
-# root_dir='/home/gimenezp/dynawo-curve-reconstruction/scripts/testcaseaia/'
-# root_dir='/home/gimenezp/dynawo-curve-reconstruction/scripts/IEEE14_Fault/'
-# # root_dir='/home/gimenezp/dynawo-curve-reconstruction/scripts/examples/DynaSwing/'
-# # root_dir='/home/gimenezp/dynawo-curve-reconstruction/scripts/largecase/tFin/'
-# target = 'terminals'
-# gen_curves = True
-# gen_csv = True
-# ranks=[2,5,10,30]
-# error, compression = compress_reconstruct(root_dir, ranks = ranks, gen_curves = gen_curves, gen_csv = gen_csv, target = target)
-
-# error_df = pd.DataFrame.from_dict(error, orient='index')
-# error_df.columns = ranks
-# print(error_df)
-# compression_df = pd.DataFrame.from_dict(compression, orient='index')
-# compression_df.columns = ranks
-# print(compression_df)
-# df[['index','column']] = df.index.values.tolist()
-# df = df.set_index(['index','column'])[0].unstack().rename_axis(None).rename_axis(None, axis=1)

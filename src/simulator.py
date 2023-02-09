@@ -162,7 +162,7 @@ def original_vs_replay_generators(original_csv, replay_dir):
         
     
 
-def runner(jobsfile, output_dir = "replay/", run_original = True, gen_curves = True, gen_csv = True, single_gen = True):
+def runner(jobsfile, output_dir = "replay/", run_original = True, gen_crv = True, gen_csv = True, single_gen = True):
     error = {}
     compression = {}
     name = subprocess.getoutput('basename '+jobsfile).split('.')[0]
@@ -189,7 +189,7 @@ def runner(jobsfile, output_dir = "replay/", run_original = True, gen_curves = T
         print("\nRunning original")
         run_simulation(jobsfile, name+"_replay.crv", simulation_outdir+'/original/')
         logging.info("Original simulation done")
-    if gen_curves:
+    if gen_crv:
         print("\nGenerating curves")
         gen_all_curves(jobsfile, target = 'terminals', newvarlogs = True)
         logging.info('generated .crv for all terminals')
@@ -203,6 +203,8 @@ def runner(jobsfile, output_dir = "replay/", run_original = True, gen_curves = T
     replay_csv = simulation_outdir+'/replay/outputs/curves/curves.csv'
 
 
+    print("Plotting results")
+    logging.info("Plotting results")
     if single_gen:
         replay(jobsfile, name+".crv", terminals_csv, simulation_outdir+'/replay/', single_gen = True)
         logging.info("Finished replay")
@@ -221,7 +223,7 @@ root_dir='../data/IEEE57/IEEE57_Fault/IEEE57.jobs'
 # root_dir='../data/smallcase/IEEE57.jobs'
 # root_dir='../data/FicheI3SM/FicheI3SM.jobs'
 # root_dir='../data/Kundur_Example13/KundurExample13.jobs'
-# root_dir='../data/examples/DynaSwing/IEEE14/IEEE14_Fault/IEEE14.jobs'
+root_dir='../data/examples/DynaSwing/IEEE14/IEEE14_Fault/IEEE14.jobs'
 # root_dir='../data/TestCase3/TestCase3.jobs'
 # root_dir='examples_copy/DynaSwing/GridForming_GridFollowing/DisconnectLine/'
 # root_dir='../data/largecase/tFin/fic.jobs'
@@ -230,5 +232,6 @@ gen_curves = True
 gen_csv = True
 
 if __name__ == '__main__':
-    runner(root_dir, output_dir, run_original = True, gen_curves = True, gen_csv = True, single_gen = True)
+    runner(root_dir, output_dir, run_original = True, gen_crv = True, gen_csv = True, single_gen = True)
+    # runner(root_dir, output_dir, run_original = False, gen_crv = False, gen_csv = False, single_gen = True)
     # runner(root_dir, output_dir, run_original = False, gen_curves = False, gen_csv = False, single_gen = True)
