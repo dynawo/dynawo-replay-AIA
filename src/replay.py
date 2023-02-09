@@ -16,9 +16,16 @@ def gen_table(csvfile, output_dir):
     os.system('rm '+output_dir+'table.txt')
     df = pd.read_csv(csvfile, sep=';')
     time = df.iloc[:,0]
-    term_names = [x.split('_V_re')[0] for x in df.columns[1:-1] if 'V_re' in x]
+    term_names = [x.split('_V_re')[0].replace(' ', '-') for x in df.columns[1:-1] if 'V_re' in x]
+    omega_names = [x.replace(' ', '-') for x in df.columns[1:-1] if 'omega' in x]
     with open(output_dir+'table.txt', 'w') as f:
-        f.write('#1\n double OmegaRefPu(2,2)\n 0 1\n {} 1\n'.format(time.iloc[-1]))
+        f.write('#1\n')
+        for omega in omega_names: 
+            O = df[omega]
+            # f.write('#1\n double OmegaRefPu({},2)\n 0 1\n {} 1\n'.format(time.iloc[-1]))
+            f.write("\ndouble {}({},2)\n".format(omega, len(O)))
+            np.savetxt(f, np.array([time, O]).T, fmt='%.10f')
+    with open(output_dir+'table.txt', 'a') as f:
         for terminal in term_names:
             cols = df[[terminal+'_V_re', terminal+'_V_im']]
             U = np.sqrt(cols[terminal+'_V_re']**2 + cols[terminal+'_V_im']**2)
@@ -195,7 +202,7 @@ def gen_par(system, output):
   <set id="IBus_{{modelpars.attributes['dydId'].value}}">
     <par name="infiniteBus_UPuTableName"  type="STRING" value="{{modelpars.attributes['dydId'].value.replace(' ', '-')}}_generator_terminal_U"/>
     <par name="infiniteBus_UPhaseTableName" type="STRING" value="{{modelpars.attributes['dydId'].value.replace(' ', '-')}}_generator_terminal_UPhase"/>
-    <par name="infiniteBus_OmegaRefPuTableName" type="STRING" value="OmegaRefPu"/>
+    <par name="infiniteBus_OmegaRefPuTableName" type="STRING" value="{{modelpars.attributes['dydId'].value.replace(' ', '-')}}_generator_omegaRefPu_value"/>
     <par name="infiniteBus_TableFile" type="STRING" value="table.txt"/>
   </set>
   {% endfor -%}
