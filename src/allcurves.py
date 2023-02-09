@@ -194,10 +194,12 @@ def gen_all_curves(jobsfile, target = "states", newvarlogs = False, recursive=Tr
     logfile = dir+'/outputs/logs/dynawoVariables.log'
     states = subprocess.getoutput("""sed -n '/X variables$/,/alias/p' {} | sed 's/.* DEBUG | [0-9]\+ \\(.*\\)/\\1/p' >> {}/states.txt """.format(logfile, dir))
     terminals = subprocess.getoutput(""" sed -n '/X variables$/,/alias/p' {} | sed '/terminal/!d' | sed 's/.* DEBUG | [0-9]\+ \\(.*\\)/\\1/p' >>  {}/terminals.txt """.format(logfile, dir))
+    os.system(""" sed -n '/X variables$/,/alias/p' {} | sed '/omegaRefPu/!d' | sed 's/.* DEBUG | [0-9]\+ \\(.*\\)/\\1/p' >>  {}/terminals.txt """.format(logfile, dir))
+    print(subprocess.getoutput(""" sed -n '/X variables$/,/alias/p' {} | sed '/omegaRefPu/!d' | sed 's/.* DEBUG | [0-9]\+ \\(.*\\)/\\1/p'""".format(logfile, dir)))
     dydfile = dir + '/{}.dyd'.format(name)
     models = subprocess.getoutput("""sed -n 's/.*id="\\([^"]*\\).*/\\1/p' {} > {}/models.txt """.format(dydfile, dir))
     os.system('sh genallcrv.sh {}/models.txt {}/{}.txt'.format(dir, dir, target))
-    os.system('mv allcurves.crv {}/{}_terminals.crv'.format(dir, name))
+    os.system('mv allcurves.crv {}/{}_{}.crv'.format(dir, target, name))
     logging.info('generated allcurves_{}.crv'.format(target))
 
 
