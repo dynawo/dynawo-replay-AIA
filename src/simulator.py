@@ -26,56 +26,50 @@ def parser_args():
     return args
 
 
-def compress_reconstruct(root_dir, dynawo_path, ranks=[10], gen_curves=True, gen_csv=True, target="states"):
+
+def compress_reconstruct(jobsfile, ranks = [10], gen_curves = True, gen_csv = True, target = "states"):
     error = {}
     compression = {}
-    for jobsfile in glob.iglob(root_dir + "**/*.jobs", recursive=True):
-        print(jobsfile)
-        name = subprocess.getoutput("basename " + jobsfile).split(".")[0]
-        dir = subprocess.getoutput("dirname " + jobsfile)
-        start = datetime.datetime.now()
-        logging.info("\nExecution of " + jobsfile + " started at " + str(start))
-        # begin pipeline execution
-        print("\n***\n" + jobsfile + "\n***\n")
-        if gen_curves:
-            gen_all_curves(jobsfile, target=target, newvarlogs=True)
-        if gen_csv:
-            os.system(dynawo_path + " jobs " + jobsfile)
-            os.system(
-                "mv {}/outputs/curves/curves.csv {}/outputs/curves/{}_curves.csv".format(
-                    dir, dir, target
-                )
+    print(jobsfile)
+    name = subprocess.getoutput('basename '+jobsfile).split('.')[0]
+    dir = subprocess.getoutput('dirname '+jobsfile)
+    start = datetime.datetime.now()
+    logging.info("\nExecution of " + jobsfile + " started at " + str(start))
+    # begin pipeline execution
+    print("\n***\n"+jobsfile+"\n***\n")
+    
+    if gen_curves:
+        gen_all_curves(jobsfile, target=target, newvarlogs=True)
+    if gen_csv:
+        os.system(dynawo_path + " jobs " + jobsfile)
+        os.system(
+            "mv {}/outputs/curves/curves.csv {}/outputs/curves/{}_curves.csv".format(
+                dir, dir, target
             )
-            logging.info("finished Dynawo simulation")
-        csvfile = dir + "/outputs/curves/{}_curves.csv".format(target)
-        if not os.path.isfile(csvfile):
-            logging.error(csvfile + " does not exist")
-            continue
-        df = pd.read_csv(csvfile, sep=";")
-        dfsize = os.path.getsize(csvfile)
-        logging.info("read CSV")
-
-        print("{} loaded".format(jobsfile))
-        compress_and_save(df, name, target, ranks=ranks)
-        logging.info("compressed matrix")
-        reconstructed = reconstruct_from_disk(name, target, ranks=ranks)
-        logging.info("reconstructed matrix")
-        error[name], compression[name] = plot_results(df, dfsize, name, target, ranks=ranks)
-        logging.info("plot results")
-        # log finish
-        end = datetime.datetime.now()
-        elapsed = end - start
-        logging.info(
-            "Execution of "
-            + jobsfile
-            + " finished at "
-            + str(end)
-            + ". Time elapsed: "
-            + str(elapsed)
-            + "\n"
         )
-        logging.info("\n")
-        return error, compression
+        logging.info('finished Dynawo simulation')
+
+    csvfile = dir+'/outputs/curves/{}_curves.csv'.format(target)
+    if not os.path.isfile(csvfile):
+        logging.error(csvfile + " does not exist")
+        return -1
+    df = pd.read_csv(csvfile, sep=';')
+    dfsize = os.path.getsize(csvfile)
+    logging.info("read CSV")
+
+    print("{} loaded".format(jobsfile))
+    compress_and_save(df, name, target, ranks=ranks)
+    logging.info("compressed matrix")
+    reconstructed = reconstruct_from_disk(name, target, ranks=ranks)
+    logging.info("reconstructed matrix")
+    error[name], compression[name] = plot_results(df, dfsize, name, target, ranks=ranks)
+    logging.info("plot results")
+    # log finish
+    end = datetime.datetime.now()
+    elapsed = end-start
+    logging.info("Execution of " + jobsfile + " finished at " + str(end) + ". Time elapsed: " + str(elapsed)+"\n")
+    logging.info("\n")
+    return error, compression
 
 
 def run_simulation(jobspath, crvfile, outdir, dynawo_path, cd_dir=False):
