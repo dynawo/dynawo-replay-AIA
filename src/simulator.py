@@ -14,6 +14,7 @@ import argparse
 def parser_args():
     parser = argparse.ArgumentParser()
 
+    parser.add_argument("run_mode")
     parser.add_argument("root_dir")
     parser.add_argument("output_dir")
     parser.add_argument("dynawo_path")
@@ -293,17 +294,8 @@ output_dir = "replay/"
 if __name__ == "__main__":
     args = parser_args()
 
-    compress_reconstruct(
-        os.path.abspath(args.root_dir),
-        os.path.abspath(args.dynawo_path),
-        [10],
-        args.gen_crv,
-        args.gen_csv,
-        "states",
-    )
-
-    """
-    runner(
+    if str(args.run_mode) == "1":
+        runner(
         os.path.abspath(args.root_dir),
         os.path.abspath(args.output_dir),
         os.path.abspath(args.dynawo_path),
@@ -312,4 +304,14 @@ if __name__ == "__main__":
         args.gen_csv,
         args.single_gen,
     )
-    """
+    elif str(args.run_mode) == "3":
+        compress_reconstruct(
+            os.path.abspath(args.root_dir),
+            os.path.abspath(args.dynawo_path),
+            [10],
+            args.gen_crv,
+            args.gen_csv,
+            "states",
+        )
+    else:
+        print("run_mode must be 1 or 3")
