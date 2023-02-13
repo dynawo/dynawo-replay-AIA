@@ -296,14 +296,14 @@ if __name__ == "__main__":
 
     if str(args.run_mode) == "1":
         runner(
-        os.path.abspath(args.root_dir),
-        os.path.abspath(args.output_dir),
-        os.path.abspath(args.dynawo_path),
-        args.run_original,
-        args.gen_crv,
-        args.gen_csv,
-        args.single_gen,
-    )
+            os.path.abspath(args.root_dir),
+            os.path.abspath(args.output_dir) + "/",
+            os.path.abspath(args.dynawo_path),
+            args.run_original,
+            args.gen_crv,
+            args.gen_csv,
+            args.single_gen,
+        )
     elif str(args.run_mode) == "3":
         compress_reconstruct(
             os.path.abspath(args.root_dir),
