@@ -27,7 +27,7 @@ def parser_args():
 
 
 
-def compress_reconstruct(jobsfile, ranks = [10], gen_curves = True, gen_csv = True, target = "states"):
+def compress_reconstruct(jobsfile, dynawo_path, ranks = [10], gen_curves = True, gen_csv = True, target = "states"):
     error = {}
     compression = {}
     print(jobsfile)
