@@ -26,18 +26,19 @@ def parser_args():
     return args
 
 
-
-def compress_reconstruct(jobsfile, dynawo_path, ranks = [10], gen_curves = True, gen_csv = True, target = "states"):
+def compress_reconstruct(
+    jobsfile, dynawo_path, ranks=[10], gen_curves=True, gen_csv=True, target="states"
+):
     error = {}
     compression = {}
     print(jobsfile)
-    name = subprocess.getoutput('basename '+jobsfile).split('.')[0]
-    dir = subprocess.getoutput('dirname '+jobsfile)
+    name = subprocess.getoutput("basename " + jobsfile).split(".")[0]
+    dir = subprocess.getoutput("dirname " + jobsfile)
     start = datetime.datetime.now()
     logging.info("\nExecution of " + jobsfile + " started at " + str(start))
     # begin pipeline execution
-    print("\n***\n"+jobsfile+"\n***\n")
-    
+    print("\n***\n" + jobsfile + "\n***\n")
+
     if gen_curves:
         gen_all_curves(jobsfile, target=target, newvarlogs=True)
     if gen_csv:
@@ -47,13 +48,13 @@ def compress_reconstruct(jobsfile, dynawo_path, ranks = [10], gen_curves = True,
                 dir, dir, target
             )
         )
-        logging.info('finished Dynawo simulation')
+        logging.info("finished Dynawo simulation")
 
-    csvfile = dir+'/outputs/curves/{}_curves.csv'.format(target)
+    csvfile = dir + "/outputs/curves/{}_curves.csv".format(target)
     if not os.path.isfile(csvfile):
         logging.error(csvfile + " does not exist")
         return -1
-    df = pd.read_csv(csvfile, sep=';')
+    df = pd.read_csv(csvfile, sep=";")
     dfsize = os.path.getsize(csvfile)
     logging.info("read CSV")
 
@@ -66,8 +67,16 @@ def compress_reconstruct(jobsfile, dynawo_path, ranks = [10], gen_curves = True,
     logging.info("plot results")
     # log finish
     end = datetime.datetime.now()
-    elapsed = end-start
-    logging.info("Execution of " + jobsfile + " finished at " + str(end) + ". Time elapsed: " + str(elapsed)+"\n")
+    elapsed = end - start
+    logging.info(
+        "Execution of "
+        + jobsfile
+        + " finished at "
+        + str(end)
+        + ". Time elapsed: "
+        + str(elapsed)
+        + "\n"
+    )
     logging.info("\n")
     return error, compression
 
@@ -211,7 +220,9 @@ def runner(jobsfile, output_dir, dynawo_path, run_original, gen_crv, gen_csv, si
     print("\n***\n" + jobsfile + "\n***\n")
     if run_original:
         print("\nRunning original")
-        run_simulation(jobsfile, name + "_replay.crv", simulation_outdir + "/original/", dynawo_path)
+        run_simulation(
+            jobsfile, name + "_replay.crv", simulation_outdir + "/original/", dynawo_path
+        )
         logging.info("Original simulation done")
     if gen_crv:
         print("\nGenerating curves")
@@ -219,7 +230,9 @@ def runner(jobsfile, output_dir, dynawo_path, run_original, gen_crv, gen_csv, si
         logging.info("generated .crv for all terminals")
     if gen_csv:
         print("\nGenerating CSV with terminal curves")
-        run_simulation(jobsfile, name + "_terminals.crv", simulation_outdir + "/terminals/", dynawo_path)
+        run_simulation(
+            jobsfile, name + "_terminals.crv", simulation_outdir + "/terminals/", dynawo_path
+        )
         logging.info("Generated CSV with terminal curves")
     print("\nReplaying")
     terminals_csv = simulation_outdir + "/terminals/outputs/curves/curves.csv"
@@ -230,7 +243,12 @@ def runner(jobsfile, output_dir, dynawo_path, run_original, gen_crv, gen_csv, si
     logging.info("Plotting results")
     if single_gen:
         replay(
-            jobsfile, name + ".crv", terminals_csv, simulation_outdir + "/replay/", dynawo_path, single_gen=True
+            jobsfile,
+            name + ".crv",
+            terminals_csv,
+            simulation_outdir + "/replay/",
+            dynawo_path,
+            single_gen=True,
         )
         logging.info("Finished replay")
         original_vs_replay_generators(original_csv, simulation_outdir + "/replay/")
@@ -257,7 +275,8 @@ def runner(jobsfile, output_dir, dynawo_path, run_original, gen_crv, gen_csv, si
         )
     return error, compression
 
-'''
+
+"""
 root_dir = "examples_copy/DynaSwing"
 # root_dir='../data/examples/DynaSwing/WSCC9/WSCC9_Fault/WSCC9.jobs'
 root_dir = "../data/IEEE57/IEEE57_Fault/IEEE57.jobs"
@@ -269,14 +288,21 @@ root_dir = "../data/examples/DynaSwing/IEEE14/IEEE14_Fault/IEEE14.jobs"
 # root_dir='examples_copy/DynaSwing/GridForming_GridFollowing/DisconnectLine/'
 # root_dir='../data/largecase/tFin/fic.jobs'
 output_dir = "replay/"
-'''
+"""
 
 if __name__ == "__main__":
     args = parser_args()
-    
-    compress_reconstruct(os.path.abspath(args.root_dir), os.path.abspath(args.dynawo_path), [10], args.gen_crv, args.gen_csv, "states")
-    
-    '''
+
+    compress_reconstruct(
+        os.path.abspath(args.root_dir),
+        os.path.abspath(args.dynawo_path),
+        [10],
+        args.gen_crv,
+        args.gen_csv,
+        "states",
+    )
+
+    """
     runner(
         os.path.abspath(args.root_dir),
         os.path.abspath(args.output_dir),
@@ -286,4 +312,4 @@ if __name__ == "__main__":
         args.gen_csv,
         args.single_gen,
     )
-    '''
+    """
