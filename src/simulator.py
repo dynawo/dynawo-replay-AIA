@@ -1,10 +1,11 @@
 import os, shutil, jinja2
 import pandas as pd
 import numpy as np
+import subprocess
 import matplotlib.pyplot as plt
 from xml.dom import minidom
-from allcurves import *
-from replay import *
+import allcurves as allcurves_code
+import replay as replay_code
 import logging, datetime
 from pathlib import Path
 import matplotlib.pyplot as plt
@@ -28,22 +29,27 @@ def parser_args():
 
 
 def compress_reconstruct(
-    jobsfile, dynawo_path, ranks=[10], gen_curves=True, gen_csv=True, target="states"
+    jobs_file_path,
+    dynawo_path,
+    ranks=[10],
+    gen_curves=True,
+    gen_csv=True,
+    target="states",
 ):
     error = {}
     compression = {}
-    print(jobsfile)
-    name = subprocess.getoutput("basename " + jobsfile).split(".")[0]
-    dir = subprocess.getoutput("dirname " + jobsfile)
+    print(jobs_file_path)
+    name = subprocess.getoutput("basename " + jobs_file_path).split(".")[0]
+    dir = subprocess.getoutput("dirname " + jobs_file_path)
     start = datetime.datetime.now()
-    logging.info("\nExecution of " + jobsfile + " started at " + str(start))
+    logging.info("\nExecution of " + jobs_file_path + " started at " + str(start))
     # begin pipeline execution
-    print("\n***\n" + jobsfile + "\n***\n")
+    print("\n***\n" + jobs_file_path + "\n***\n")
 
     if gen_curves:
-        gen_all_curves(jobsfile, target=target, newvarlogs=True)
+        gen_all_curves(jobs_file_path, target, True)
     if gen_csv:
-        os.system(dynawo_path + " jobs " + jobsfile)
+        os.system(dynawo_path + " jobs " + jobs_file_path)
         os.system(
             "mv {}/outputs/curves/curves.csv {}/outputs/curves/{}_curves.csv".format(
                 dir, dir, target
@@ -59,7 +65,7 @@ def compress_reconstruct(
     dfsize = os.path.getsize(csvfile)
     logging.info("read CSV")
 
-    print("{} loaded".format(jobsfile))
+    print("{} loaded".format(jobs_file_path))
     compress_and_save(df, name, target, ranks=ranks)
     logging.info("compressed matrix")
     reconstructed = reconstruct_from_disk(name, target, ranks=ranks)
@@ -71,7 +77,7 @@ def compress_reconstruct(
     elapsed = end - start
     logging.info(
         "Execution of "
-        + jobsfile
+        + jobs_file_path
         + " finished at "
         + str(end)
         + ". Time elapsed: "
@@ -82,38 +88,43 @@ def compress_reconstruct(
     return error, compression
 
 
-def run_simulation(jobspath, crvfile, outdir, dynawo_path, cd_dir=False):
-    name = subprocess.getoutput("basename " + jobspath).split(".")[0]
-    dir = subprocess.getoutput("dirname " + jobspath) + "/"
-    add_logs(jobspath)
-    change_curve_file(jobspath, crvfile)
-    cd = ""
-    if cd_dir:
-        cd = "cd " + dir + " && "
-    logging.info("simulation start")
-    os.system(cd + dynawo_path + " jobs " + jobspath)
+def run_simulation(
+    case_name,
+    base_case_dir,
+    jobs_file,
+    curves_file,
+    output_dir,
+    dynawo_path,
+):
+    output_jobs_file_path = output_dir + jobs_file
+
+    # Copy the case to the output dir
+    os.makedirs(output_dir, exist_ok=True)
+    os.system("cp -rf {}* {}".format(base_case_dir, output_dir))
+
+    allcurves_code.add_logs(output_jobs_file_path)
+
+    # TODO: Check where to define this part
+    # Delete namespaces tags
+    os.system("""sed -i 's/<dyn:/</g' {} """.format(output_jobs_file_path))
+    os.system("""sed -i 's/<\/dyn:/<\//g' {} """.format(output_jobs_file_path))
+    os.system("""sed -i 's/:dyn//g' {} """.format(output_jobs_file_path))
+
+    # TODO: Check if it's necessary
+    # Modify the input curves file name
+    allcurves_code.change_curve_file(output_jobs_file_path, curves_file)
+
+    # Run case
+    os.system(dynawo_path + " jobs " + output_jobs_file_path)
+
     logging.info("simulation end")
-    if outdir:
-        os.makedirs(outdir, exist_ok=True)
-        os.system("cp -rf {}/outputs {}/".format(dir, outdir))
-        # os.system('cp -rf '+dir+'/{*.jobs, *.crv, *.iidm, *.par, *.dyd, *.txt} ' + outdir + '/'.format(dir,outdir))
-        os.system("cp -rf {}/{}.dyd {}/".format(dir, name, outdir))
-        for ext in [".jobs", ".crv", ".par", ".txt"]:
-            os.system("cp -rf {}/*{} {}/".format(dir, ext, outdir))
-        # copy .dyd of the generator. Its full path must be in the main .jobs file
-        file = minidom.parse(jobspath)
-        models = file.getElementsByTagName("dynModels")[0]
-        dydfile = models.getAttribute("dydFile")
-        dydfilename = subprocess.getoutput("basename " + dydfile).split(".")[0]
-        if os.path.isfile(dydfile):
-            os.system("mv {} {}/".format(dydfile, outdir))
-            change_jobs_file(outdir + "/" + name + ".jobs", dydfilename + ".dyd")
-            change_curve_file(outdir + "/" + name + ".jobs", name + ".crv")
 
 
-def replay(jobspath, crvfile, terminals_csv, outdir, dynawo_path, single_gen=True):
-    name = subprocess.getoutput("basename " + jobspath).split(".")[0]
-    dir = subprocess.getoutput("dirname " + jobspath) + "/"
+def replay(
+    jobs_file_path, crvfile, terminals_csv, outdir, dynawo_path, single_gen=True
+):
+    name = subprocess.getoutput("basename " + jobs_file_path).split(".")[0]
+    dir = subprocess.getoutput("dirname " + jobs_file_path) + "/"
     os.makedirs(outdir + "/outputs", exist_ok=True)
     gen_replay_files(dir, name, terminals_csv, outdir)
     outdir = os.path.abspath(outdir) + "/"
@@ -137,12 +148,14 @@ def replay_single_generators(name, outdir, dynawo_path):
         gen_id = generators[gen]["dyd"].attributes["id"].value
         gen_ids.append(gen_id)
         gen_dydfile = outdir + "/" + gen_id + ".dyd"
-        gen_jobsfile = outdir + name + ".jobs"
+        gen_jobs_file_path = outdir + name + ".jobs"
         gen_dyd(system, gen_dydfile)
-        change_jobs_file(gen_jobsfile, gen_dydfile)
-        run_simulation(gen_jobsfile, crvfile_name, outdir + gen_id, dynawo_path, cd_dir=True)
+        change_jobs_file(gen_jobs_file_path, gen_dydfile)
+        run_simulation(
+            gen_jobs_file_path, crvfile_name, outdir + gen_id, dynawo_path, cd_dir=True
+        )
         logging.info("Replay generator " + gen_id)
-    change_jobs_file(gen_jobsfile, name + ".dyd")
+    change_jobs_file(gen_jobs_file_path, name + ".dyd")
     with open(outdir + "generators.txt", "w") as f:
         f.write("\n".join(gen_ids))
 
@@ -192,89 +205,139 @@ def original_vs_replay_generators(original_csv, replay_dir):
         os.makedirs(fig_dir, exist_ok=True)
         with open(fig_dir + "vars.txt", "w") as f:
             f.write(gen + "\n")
-        original_vs_replay(original_csv, gen_dir + "/outputs/curves/curves.csv", fig_dir, title="")
+        original_vs_replay(
+            original_csv, gen_dir + "/outputs/curves/curves.csv", fig_dir, title=""
+        )
 
 
-def runner(jobsfile, output_dir, dynawo_path, run_original, gen_crv, gen_csv, single_gen):
+def runner(
+    original_jobs_file_path,
+    output_dir,
+    dynawo_path,
+    run_original,
+    gen_crv,
+    gen_csv,
+    single_gen,
+):
     error = {}
     compression = {}
-    name = subprocess.getoutput("basename " + jobsfile).split(".")[0]
-    dir = subprocess.getoutput("dirname " + jobsfile) + "/"
-    replay_outdir = output_dir + name + "/"
-    simulation_outdir = "simulations/{}/".format(name)
-    os.makedirs(replay_outdir, exist_ok=True)
-    os.makedirs(simulation_outdir, exist_ok=True)
+
+    # Get the case name
+    case_name = subprocess.getoutput("basename " + original_jobs_file_path).split(".")[
+        0
+    ]
+
+    # Get the base case directory name
+    base_case_dir = subprocess.getoutput("dirname " + original_jobs_file_path) + "/"
+
+    # Define the output directory
+    simulation_output_dir = output_dir + "{}/".format(case_name)
+
+    jobs_file = (
+        case_name
+        + "."
+        + subprocess.getoutput("basename " + original_jobs_file_path).split(".")[-1]
+    )
+
+    os.makedirs(simulation_output_dir, exist_ok=True)
+
+    # Create and config the simulation log file
     logging.basicConfig(
-        filename="simulations/{}/simulation.log".format(name),
+        filename=simulation_output_dir + "/simulation.log",
         format="%(asctime)s %(levelname)-8s %(message)s",
         level=logging.DEBUG,
         datefmt="%Y-%m-%d %H:%M:%S",
     )
-    crvfile = dir + name + ".crv"
-    os.system("cp " + crvfile + " " + dir + name + "_orig.crv")
-    replay_crv = dir + name + "_replay.crv"
+
+    # Begin pipeline execution
     start = datetime.datetime.now()
-    logging.info("\nExecution of " + jobsfile + " started at " + str(start))
-    if not os.path.isfile(replay_crv):
-        shutil.copyfile(crvfile, replay_crv)
-    # begin pipeline execution
-    print("\n***\n" + jobsfile + "\n***\n")
+    logging.info("\nExecution of " + jobs_file + " started at " + str(start))
+
+    print("\n***\n" + original_jobs_file_path + "\n***\n")
+
+    # Run the original case
     if run_original:
         print("\nRunning original")
         run_simulation(
-            jobsfile, name + "_replay.crv", simulation_outdir + "/original/", dynawo_path
+            case_name,
+            base_case_dir,
+            jobs_file,
+            case_name + ".crv",
+            simulation_output_dir + "original/",
+            dynawo_path,
         )
         logging.info("Original simulation done")
+
+    # Generate terminal curves file
     if gen_crv:
         print("\nGenerating curves")
-        gen_all_curves(jobsfile, target="terminals", newvarlogs=True)
+        os.makedirs(simulation_output_dir + "terminals/", exist_ok=True)
+        allcurves_code.gen_all_curves(
+            case_name,
+            simulation_output_dir + "original/",
+            simulation_output_dir + "terminals/",
+            jobs_file,
+            "terminals",
+            True,
+        )
         logging.info("generated .crv for all terminals")
+
+    # Generate results csv terminal curves file
     if gen_csv:
         print("\nGenerating CSV with terminal curves")
         run_simulation(
-            jobsfile, name + "_terminals.crv", simulation_outdir + "/terminals/", dynawo_path
+            case_name,
+            base_case_dir,
+            jobs_file,
+            case_name + "_terminals.crv",
+            simulation_output_dir + "terminals/",
+            dynawo_path,
         )
         logging.info("Generated CSV with terminal curves")
+
+    # Define csv paths
     print("\nReplaying")
-    terminals_csv = simulation_outdir + "/terminals/outputs/curves/curves.csv"
-    original_csv = simulation_outdir + "/original/outputs/curves/curves.csv"
-    replay_csv = simulation_outdir + "/replay/outputs/curves/curves.csv"
+    terminals_csv = simulation_output_dir + "/terminals/outputs/curves/curves.csv"
+    original_csv = simulation_output_dir + "/original/outputs/curves/curves.csv"
+    replay_csv = simulation_output_dir + "/replay/outputs/curves/curves.csv"
 
     print("Plotting results")
     logging.info("Plotting results")
+    """
     if single_gen:
         replay(
-            jobsfile,
-            name + ".crv",
+            jobs_file_path,
+            case_name + ".crv",
             terminals_csv,
-            simulation_outdir + "/replay/",
+            simulation_output_dir + "/replay/",
             dynawo_path,
             single_gen=True,
         )
         logging.info("Finished replay")
-        original_vs_replay_generators(original_csv, simulation_outdir + "/replay/")
+        original_vs_replay_generators(original_csv, simulation_output_dir + "/replay/")
     else:
         replay(
-            jobsfile,
-            name + ".crv",
+            jobs_file_path,
+            case_name + ".crv",
             terminals_csv,
-            simulation_outdir + "/replay/",
+            simulation_output_dir + "/replay/",
             dynawo_path,
             single_gen=False,
         )
         logging.info("Finished replay")
         plot_csv(
             original_csv,
-            simulation_outdir + "{}_original.png".format(name),
-            title=name + " Original",
+            simulation_output_dir + "{}_original.png".format(case_name),
+            title=case_name + " Original",
         )
         plot_csv(
-            replay_csv, simulation_outdir + "{}_replay.png".format(name), title=name + " Replay"
+            replay_csv, simulation_output_dir + "{}_replay.png".format(case_name), title=case_name + " Replay"
         )
         original_vs_replay(
-            original_csv, replay_csv, simulation_outdir, title=name + " Original vs Replay"
+            original_csv, replay_csv, simulation_output_dir , title=case_name + " Original vs Replay"
         )
     return error, compression
+"""
 
 
 """
