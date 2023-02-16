@@ -33,7 +33,9 @@ def add_logs(jobsfilename, tagPrefix=""):
         out.close()
 
 
-def compress_and_save(df, name, target="states", outpath="results", ranks=[10], randomized=True):
+def compress_and_save(
+    df, name, target="states", outpath="results", ranks=[10], randomized=True
+):
     df = np.array(df.iloc[:, 1:-1]).T
     error = []
     compression = []
@@ -51,7 +53,8 @@ def compress_and_save(df, name, target="states", outpath="results", ranks=[10], 
         else:
             u, d, v = np.linalg.svd(np.matrix(g(d[0:r]), v[0:r, :]))
         with open(
-            outpath + "/{}/{}_{}_compressed_rank_{}.npy".format(name, name, target, r), "wb"
+            outpath + "/{}/{}_{}_compressed_rank_{}.npy".format(name, name, target, r),
+            "wb",
         ) as f:
             np.save(f, u)
             np.save(f, d)
@@ -61,7 +64,9 @@ def compress_and_save(df, name, target="states", outpath="results", ranks=[10], 
 def reconstruct_from_disk(name, target="states", path="results", ranks=[10]):
     reconstructed = []
     for r in ranks:
-        filepath = "{}/{}/{}_{}_compressed_rank_{}.npy".format(path, name, name, target, r)
+        filepath = "{}/{}/{}_{}_compressed_rank_{}.npy".format(
+            path, name, name, target, r
+        )
         with open(filepath, "rb") as f:
             u = np.load(f)
             d = np.load(f)
@@ -141,7 +146,9 @@ def plot_svd(df, filename, ranks=[10], randomized=True):
             u, d, v = randomized_svd(df, r)
         else:
             u, d, v = np.linalg.svd(np.matrix(g(d[0:r]), v[0:r, :]))
-        with open("results/{}/{}_compressed_rank_{}.npy".format(filename, filename, r)) as f:
+        with open(
+            "results/{}/{}_compressed_rank_{}.npy".format(filename, filename, r)
+        ) as f:
             np.save(f, u)
             np.save(f, d)
             np.save(f, v)
@@ -168,7 +175,9 @@ def plot_svd(df, filename, ranks=[10], randomized=True):
         ax2.plot(v[0:r, :].T)
         ax2.set_title("Top {} right SV".format(r))
         plt.savefig(
-            "results/{}/{}_rank_{}.png".format(filename, filename, r), dpi=300, bbox_inches="tight"
+            "results/{}/{}_rank_{}.png".format(filename, filename, r),
+            dpi=300,
+            bbox_inches="tight",
         )
         plt.close("all")
         plt.figure()
@@ -208,33 +217,48 @@ def change_jobs_file(jobsfile, dydfilename, tag_prefix=""):
         out.close()
 
 
-def gen_all_curves(jobsfile, target="states", newvarlogs=False, recursive=True):
-    name = subprocess.getoutput("basename " + jobsfile).split(".")[0]
-    dir = subprocess.getoutput("dirname " + jobsfile)
+def gen_all_curves(
+    case_name,
+    case_dir,
+    output_dir,
+    jobs_file,
+    target="states",
+    newvarlogs=False,
+    recursive=True,
+):
     # os.system("""egrep -rl '<dyn:' {}/ | xargs -I sed -i '' 's/<dyn:/</g'  """.format(dir))
-    os.system("""sed -i 's/<dyn:/</g' {} """.format(jobsfile))
-    os.system("""sed -i 's/<\/dyn:/<\//g' {} """.format(jobsfile))
-    os.system("""sed -i 's/:dyn//g' {} """.format(jobsfile))
-    logfile = dir + "/outputs/logs/dynawoVariables.log"
-    states = subprocess.getoutput(
+
+    output_jobs_file = case_dir + jobs_file
+
+    logfile = case_dir + "/outputs/logs/dynawoVariables.log"
+
+    # Get data from output simulations
+    os.system(
         """sed -n '/X variables$/,/alias/p' {} | sed 's/.* DEBUG | [0-9]\+ \\(.*\\)/\\1/p' >> {}/states.txt """.format(
-            logfile, dir
+            logfile, output_dir
         )
     )
-    terminals = subprocess.getoutput(
+    os.system(
         """ sed -n '/X variables$/,/alias/p' {} | sed '/terminal/!d' | sed 's/.* DEBUG | [0-9]\+ \\(.*\\)/\\1/p' >>  {}/terminals.txt """.format(
-            logfile, dir
+            logfile, output_dir
         )
     )
     os.system(
         """ sed -n '/X variables$/,/alias/p' {} | sed '/omegaRefPu/!d' | sed 's/.* DEBUG | [0-9]\+ \\(.*\\)/\\1/p' >>  {}/terminals.txt """.format(
-            logfile, dir
+            logfile, output_dir
         )
     )
-    dydfile = dir + "/{}.dyd".format(name)
-    models = subprocess.getoutput(
-        """sed -n 's/.*id="\\([^"]*\\).*/\\1/p' {} > {}/models.txt """.format(dydfile, dir)
+
+    dydfile = case_dir + "/{}.dyd".format(case_name)
+    os.system(
+        """sed -n 's/.*id="\\([^"]*\\).*/\\1/p' {} > {}/models.txt """.format(
+            dydfile, output_dir
+        )
     )
-    os.system("sh genallcrv.sh {}/models.txt {}/{}.txt".format(dir, dir, target))
-    os.system("mv allcurves.crv {}/{}_{}.crv".format(dir, name, target))
+    os.system(
+        "sh genallcrv.sh {}/models.txt {}/{}.txt".format(output_dir, output_dir, target)
+    )
+
+    # Generate terminals crv fileyyy
+    os.system("mv allcurves.crv {}/{}_{}.crv".format(output_dir, case_name, target))
     logging.info("generated allcurves_{}.crv".format(target))
