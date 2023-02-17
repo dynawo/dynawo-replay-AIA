@@ -89,7 +89,6 @@ def compress_reconstruct(
 
 
 def run_simulation(
-    case_name,
     base_case_dir,
     jobs_file,
     curves_file,
@@ -100,7 +99,9 @@ def run_simulation(
 
     # Copy the case to the output dir
     os.makedirs(output_dir, exist_ok=True)
-    os.system("cp -rf {}* {}".format(base_case_dir, output_dir))
+
+    if base_case_dir != False:
+        os.system("cp -rf {}* {}".format(base_case_dir, output_dir))
 
     allcurves_code.add_logs(output_jobs_file_path)
 
@@ -121,42 +122,66 @@ def run_simulation(
 
 
 def replay(
-    jobs_file_path, crvfile, terminals_csv, outdir, dynawo_path, single_gen=True
+    case_name,
+    base_case_dir,
+    jobs_file,
+    terminals_csv,
+    output_dir,
+    dynawo_path,
+    single_gen,
 ):
-    name = subprocess.getoutput("basename " + jobs_file_path).split(".")[0]
-    dir = subprocess.getoutput("dirname " + jobs_file_path) + "/"
-    os.makedirs(outdir + "/outputs", exist_ok=True)
-    gen_replay_files(dir, name, terminals_csv, outdir)
-    outdir = os.path.abspath(outdir) + "/"
+    # TODO: Check if its necessary
+    # os.makedirs(outdir + "/outputs", exist_ok=True)
+
+    # Generate the replay files
+    replay_code.gen_replay_files(base_case_dir, case_name, terminals_csv, output_dir)
+
     if single_gen:
-        replay_single_generators(name, outdir, dynawo_path)
+        replay_single_generators(case_name, output_dir, jobs_file, dynawo_path)
     else:
-        run_simulation(outdir + name + ".jobs", crvfile, "", dynawo_path, cd_dir=True)
+        run_simulation(
+            output_dir + name + ".jobs", crvfile, "", dynawo_path, cd_dir=True
+        )
 
 
-def replay_single_generators(name, outdir, dynawo_path):
-    dydfile = outdir + name + ".dyd"
-    crvfile_name = name + ".crv"
-    crvfile = outdir + crvfile_name
-    file = minidom.parse(dydfile)
-    generators = get_generators(dydfile)
+def replay_single_generators(case_name, output_dir, jobs_file, dynawo_path):
+    dydfile = output_dir + case_name + ".dyd"
+
+    # TODO: Study what curves should be replayed
+    crvfile_name = case_name + ".crv"
+    crvfile = output_dir + crvfile_name
+    # file = minidom.parse(dydfile)
+
+    # TODO: Change this in order to replay only the needed gens
+    # Get list of all generators of the dyd case file
+    generators = replay_code.get_generators(dydfile, "dyn:")
     gen_ids = []
     for gen in generators:
         system = {}
         system["generators"] = {gen: generators[gen]}
-        system["name"] = name
+        system["name"] = case_name
         gen_id = generators[gen]["dyd"].attributes["id"].value
         gen_ids.append(gen_id)
-        gen_dydfile = outdir + "/" + gen_id + ".dyd"
-        gen_jobs_file_path = outdir + name + ".jobs"
-        gen_dyd(system, gen_dydfile)
-        change_jobs_file(gen_jobs_file_path, gen_dydfile)
-        run_simulation(
-            gen_jobs_file_path, crvfile_name, outdir + gen_id, dynawo_path, cd_dir=True
-        )
+
+        output_dir_gen = output_dir + gen_id + "/"
+        os.makedirs(output_dir_gen, exist_ok=True)
+        os.system("cp {}/{} {}/".format(output_dir, jobs_file, output_dir_gen))
+        os.system("cp {}/*.par {}/".format(output_dir, output_dir_gen))
+        os.system("cp {}/*.crv {}/".format(output_dir, output_dir_gen))
+
+        gen_dydfile = output_dir_gen + gen_id + ".dyd"
+        gen_jobs_file_path = output_dir_gen + jobs_file
+
+        # Create the single gen file
+        replay_code.gen_dyd(system, gen_dydfile)
+
+        allcurves_code.change_jobs_file(gen_jobs_file_path, gen_dydfile)
+
+        run_simulation(False, jobs_file, crvfile, output_dir_gen, dynawo_path)
+
         logging.info("Replay generator " + gen_id)
-    change_jobs_file(gen_jobs_file_path, name + ".dyd")
-    with open(outdir + "generators.txt", "w") as f:
+
+    with open(output_dir + "generators.txt", "w") as f:
         f.write("\n".join(gen_ids))
 
 
@@ -196,12 +221,12 @@ def original_vs_replay(original_csv, replay_csv, outputdir, title="Simulation"):
 
 
 def original_vs_replay_generators(original_csv, replay_dir):
-    """Plot original and replayed curves for each generator in replay_dir"""
-    with open(replay_dir + "generators.txt") as file:
+    # Plot original and replayed curves for each generator in replay_dir
+    with open(replay_dir + "/generators.txt") as file:
         generators = [line.rstrip() for line in file]
     for gen in generators:
         gen_dir = "{}/{}/".format(replay_dir, gen)
-        fig_dir = replay_dir + "/fig/" + gen + "/"
+        fig_dir = gen_dir + "fig/"
         os.makedirs(fig_dir, exist_ok=True)
         with open(fig_dir + "vars.txt", "w") as f:
             f.write(gen + "\n")
@@ -259,7 +284,6 @@ def runner(
     if run_original:
         print("\nRunning original")
         run_simulation(
-            case_name,
             base_case_dir,
             jobs_file,
             case_name + ".crv",
@@ -286,7 +310,6 @@ def runner(
     if gen_csv:
         print("\nGenerating CSV with terminal curves")
         run_simulation(
-            case_name,
             base_case_dir,
             jobs_file,
             case_name + "_terminals.crv",
@@ -303,18 +326,21 @@ def runner(
 
     print("Plotting results")
     logging.info("Plotting results")
-    """
+
+    # Reconstruction of the curves
     if single_gen:
         replay(
-            jobs_file_path,
-            case_name + ".crv",
+            case_name,
+            base_case_dir,
+            jobs_file,
             terminals_csv,
-            simulation_output_dir + "/replay/",
+            simulation_output_dir + "replay/",
             dynawo_path,
-            single_gen=True,
+            True,
         )
         logging.info("Finished replay")
-        original_vs_replay_generators(original_csv, simulation_output_dir + "/replay/")
+        original_vs_replay_generators(original_csv, simulation_output_dir + "replay")
+    """
     else:
         replay(
             jobs_file_path,
