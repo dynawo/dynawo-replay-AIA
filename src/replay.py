@@ -14,7 +14,11 @@ import logging, datetime
 
 
 def gen_table(csvfile, output_dir):
-    os.system("rm " + output_dir + "table.txt")
+    # Remove previous files
+    if os.path.isfile(output_dir + "table.txt"):
+        os.system("rm " + output_dir + "table.txt")
+
+    # Create new table file
     df = pd.read_csv(csvfile, sep=";")
     time = df.iloc[:, 0]
     term_names = [
@@ -51,11 +55,14 @@ def get_jobs_config(jobsfile):
     system["simulation"] = {
         "startTime": simulation.attributes["startTime"].value,
         "stopTime": simulation.attributes["stopTime"].value,
+        "precision": simulation.attributes["precision"].value
+        if "precision" in simulation.attributes
+        else "1e-8",
     }
     return system
 
 
-def get_generators(dydfile, tagPrefix="dyn:"):
+def get_generators(dydfile, tagPrefix):
     file = minidom.parse(dydfile)
     models = file.getElementsByTagName(tagPrefix + "blackBoxModel")
     generators = [x for x in models if "Generator" in x.attributes["lib"].value]
@@ -179,7 +186,7 @@ simulation tool for power systems. -->
             <precompiledModels useStandardModels="true"/>
             <modelicaModels useStandardModels="true"/>
         </modeler>
-        <simulation startTime="{{system['simulation']['startTime']}}" stopTime="{{system['simulation']['stopTime']}}" precision="1e-8"/>
+        <simulation startTime="{{system['simulation']['startTime']}}" stopTime="{{system['simulation']['stopTime']}}" precision="{{system['simulation']['precision']}}"/>
         <outputs directory="outputs">
             <curves inputFile="{{system['name']}}.crv" exportMode="CSV"/>
 
@@ -250,7 +257,7 @@ def gen_par(system, output):
     <par name="infiniteBus_UPuTableName"  type="STRING" value="{{modelpars.attributes['dydId'].value.replace(' ', '-')}}_generator_terminal_U"/>
     <par name="infiniteBus_UPhaseTableName" type="STRING" value="{{modelpars.attributes['dydId'].value.replace(' ', '-')}}_generator_terminal_UPhase"/>
     <par name="infiniteBus_OmegaRefPuTableName" type="STRING" value="{{modelpars.attributes['dydId'].value.replace(' ', '-')}}_generator_omegaRefPu_value"/>
-    <par name="infiniteBus_TableFile" type="STRING" value="table.txt"/>
+    <par name="infiniteBus_TableFile" type="STRING" value="{{infinite_bus_table}}"/>
   </set>
   {% endfor -%}
 
@@ -268,7 +275,13 @@ def gen_par(system, output):
     """
     template = jinja2.Template(template_src)
     with open(output, "w") as f:
-        f.write(template.render(system=system, parlist=parlist))
+        f.write(
+            template.render(
+                system=system,
+                parlist=parlist,
+                infinite_bus_table=system["infinite_bus_table"],
+            )
+        )
 
 
 # TODO: Substitute the IDA solver for the first line above in order to get the original params from simulation
@@ -313,30 +326,47 @@ def remove_namespaces(file, tag):
     os.system("sed -i 's/<\\/{}:/<\\//g' {}".format(tag, file))
 
 
-def gen_replay_files(root_dir, model, terminals_csv, output_dir="replay/"):
+def gen_replay_files(root_dir, model, terminals_csv, output_dir):
     os.makedirs(output_dir, exist_ok=True)
+
+    # Generate the replay table file
     gen_table(terminals_csv, output_dir)
-    # gen_table(csvfile, output_dir)
+
     in_jobs, in_par, in_dyd, in_iidm, in_crv = [
         root_dir + model + x for x in [".jobs", ".par", ".dyd", ".iidm", ".crv"]
     ]
     out_jobs, out_par, out_dyd, out_crv = [
         output_dir + model + x for x in [".jobs", ".par", ".dyd", ".crv"]
     ]
+
     # remove_namespaces(in_dyd, 'dyn')
     # remove_namespaces(in_iidm, 'iidm')
+
+    # Get simulation config params
     system = get_jobs_config(in_jobs)
+
+    # Get list of all dyd gens
     gen_dict = get_generators(in_dyd, "dyn:")
+
+    # Add gen initilization params
     get_gen_params(in_par, gen_dict)
-    # solver_params = gen_dict['solver']
-    # gen_dict.pop('solver')
+
+    # Get initialization params that are defined in the iidm
     parlist = [x["par"] for x in gen_dict.values()]
     get_refs(gen_dict, parlist, root_dir + model + ".iidm")
+
     system["generators"] = gen_dict
     system["name"] = model
+    system["infinite_bus_table"] = output_dir + "table.txt"
+
+    # Get the solver parameters to use them in the recreation of the curves
     get_solver_params(in_jobs, in_par, system)
+
+    # Generate the replay simulation files with all the data obtained above
     gen_jobs(system, out_jobs)
     gen_dyd(system, out_dyd)
     gen_par(system, out_par)
-    os.system("cp {}*_replay.crv {}/{}.crv".format(root_dir, output_dir, model))
+
+    # TODO: Study what curves should be replayed and modify this part
+    os.system("cp {}/{}.crv {}/{}.crv".format(root_dir, model, output_dir, model))
     return system
