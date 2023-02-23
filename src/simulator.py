@@ -47,9 +47,15 @@ def compress_reconstruct(
     print("\n***\n" + jobs_file_path + "\n***\n")
 
     if gen_curves:
-        gen_all_curves(jobs_file_path, target, True)
+        gen_all_curves_original(jobs_file_path, target, True)
     if gen_csv:
+        start_time = datetime.datetime.now()
         os.system(dynawo_path + " jobs " + jobs_file_path)
+        end_time = datetime.datetime.now()
+
+        print("\nELAPSED TIME")
+        print(end_time - start_time)
+        print("\n\n\n")
         os.system(
             "mv {}/outputs/curves/curves.csv {}/outputs/curves/{}_curves.csv".format(
                 dir, dir, target
@@ -94,6 +100,7 @@ def run_simulation(
     curves_file,
     output_dir,
     dynawo_path,
+    add_ini_par=False,
 ):
     output_jobs_file_path = output_dir + jobs_file
 
@@ -113,10 +120,17 @@ def run_simulation(
 
     # TODO: Check if it's necessary
     # Modify the input curves file name
+    if add_ini_par:
+        allcurves_code.add_ini_par_file(output_jobs_file_path)
     allcurves_code.change_curve_file(output_jobs_file_path, curves_file)
 
     # Run case
+    start_time = datetime.datetime.now()
     os.system(dynawo_path + " jobs " + output_jobs_file_path)
+    end_time = datetime.datetime.now()
+    print("\nELAPSED TIME")
+    print(end_time - start_time)
+    print("\n\n\n")
 
     logging.info("simulation end")
 
@@ -139,9 +153,7 @@ def replay(
     if single_gen:
         replay_single_generators(case_name, output_dir, jobs_file, dynawo_path)
     else:
-        run_simulation(
-            output_dir + name + ".jobs", crvfile, "", dynawo_path, cd_dir=True
-        )
+        run_simulation(output_dir + name + ".jobs", crvfile, "", dynawo_path, cd_dir=True)
 
 
 def replay_single_generators(case_name, output_dir, jobs_file, dynawo_path):
@@ -230,9 +242,7 @@ def original_vs_replay_generators(original_csv, replay_dir):
         os.makedirs(fig_dir, exist_ok=True)
         with open(fig_dir + "vars.txt", "w") as f:
             f.write(gen + "\n")
-        original_vs_replay(
-            original_csv, gen_dir + "/outputs/curves/curves.csv", fig_dir, title=""
-        )
+        original_vs_replay(original_csv, gen_dir + "/outputs/curves/curves.csv", fig_dir, title="")
 
 
 def runner(
@@ -248,9 +258,7 @@ def runner(
     compression = {}
 
     # Get the case name
-    case_name = subprocess.getoutput("basename " + original_jobs_file_path).split(".")[
-        0
-    ]
+    case_name = subprocess.getoutput("basename " + original_jobs_file_path).split(".")[0]
 
     # Get the base case directory name
     base_case_dir = subprocess.getoutput("dirname " + original_jobs_file_path) + "/"
@@ -280,31 +288,22 @@ def runner(
 
     print("\n***\n" + original_jobs_file_path + "\n***\n")
 
-    # Run the original case
-    if run_original:
-        print("\nRunning original")
-        run_simulation(
-            base_case_dir,
-            jobs_file,
-            case_name + ".crv",
-            simulation_output_dir + "original/",
-            dynawo_path,
-        )
-        logging.info("Original simulation done")
-
     # Generate terminal curves file
     if gen_crv:
-        print("\nGenerating curves")
-        os.makedirs(simulation_output_dir + "terminals/", exist_ok=True)
-        allcurves_code.gen_all_curves(
-            case_name,
-            simulation_output_dir + "original/",
-            simulation_output_dir + "terminals/",
-            jobs_file,
-            "terminals",
-            True,
-        )
-        logging.info("generated .crv for all terminals")
+        if run_original:
+            print("\nGenerating curves")
+            os.makedirs(simulation_output_dir + "terminals/", exist_ok=True)
+            allcurves_code.gen_all_curves_fast(
+                case_name, base_case_dir, simulation_output_dir + "terminals/", False
+            )
+            logging.info("generated .crv for all terminals")
+        else:
+            print("\nGenerating curves")
+            os.makedirs(simulation_output_dir + "terminals/", exist_ok=True)
+            allcurves_code.gen_all_curves_fast(
+                case_name, base_case_dir, simulation_output_dir + "terminals/", True
+            )
+            logging.info("generated .crv for all terminals")
 
     # Generate results csv terminal curves file
     if gen_csv:
@@ -315,14 +314,17 @@ def runner(
             case_name + "_terminals.crv",
             simulation_output_dir + "terminals/",
             dynawo_path,
+            True,
         )
         logging.info("Generated CSV with terminal curves")
 
     # Define csv paths
-    print("\nReplaying")
     terminals_csv = simulation_output_dir + "/terminals/outputs/curves/curves.csv"
-    original_csv = simulation_output_dir + "/original/outputs/curves/curves.csv"
     replay_csv = simulation_output_dir + "/replay/outputs/curves/curves.csv"
+    if run_original:
+        original_csv = simulation_output_dir + "/terminals/outputs/curves/curves.csv"
+    else:
+        original_csv = None
 
     print("Plotting results")
     logging.info("Plotting results")
@@ -339,7 +341,9 @@ def runner(
             True,
         )
         logging.info("Finished replay")
-        original_vs_replay_generators(original_csv, simulation_output_dir + "replay")
+
+        if run_original:
+            original_vs_replay_generators(original_csv, simulation_output_dir + "replay")
     """
     else:
         replay(

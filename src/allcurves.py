@@ -33,9 +33,7 @@ def add_logs(jobsfilename, tagPrefix=""):
         out.close()
 
 
-def compress_and_save(
-    df, name, target="states", outpath="results", ranks=[10], randomized=True
-):
+def compress_and_save(df, name, target="states", outpath="results", ranks=[10], randomized=True):
     df = np.array(df.iloc[:, 1:-1]).T
     error = []
     compression = []
@@ -64,9 +62,7 @@ def compress_and_save(
 def reconstruct_from_disk(name, target="states", path="results", ranks=[10]):
     reconstructed = []
     for r in ranks:
-        filepath = "{}/{}/{}_{}_compressed_rank_{}.npy".format(
-            path, name, name, target, r
-        )
+        filepath = "{}/{}/{}_{}_compressed_rank_{}.npy".format(path, name, name, target, r)
         with open(filepath, "rb") as f:
             u = np.load(f)
             d = np.load(f)
@@ -146,9 +142,7 @@ def plot_svd(df, filename, ranks=[10], randomized=True):
             u, d, v = randomized_svd(df, r)
         else:
             u, d, v = np.linalg.svd(np.matrix(g(d[0:r]), v[0:r, :]))
-        with open(
-            "results/{}/{}_compressed_rank_{}.npy".format(filename, filename, r)
-        ) as f:
+        with open("results/{}/{}_compressed_rank_{}.npy".format(filename, filename, r)) as f:
             np.save(f, u)
             np.save(f, d)
             np.save(f, v)
@@ -197,6 +191,26 @@ def plot_svd(df, filename, ranks=[10], randomized=True):
     # plt.savefig("plots/C_{}.png".format(filename))
 
 
+def add_ini_par_file(jobsfile, tag_prefix=""):
+    file = minidom.parse(jobsfile)
+    dumpInitValues = file.getElementsByTagName(tag_prefix + "dumpInitValues")
+    if dumpInitValues:
+        dumpInitValues = dumpInitValues[0]
+        dumpInitValues.setAttribute("local", "true")
+        dumpInitValues.setAttribute("global", "true")
+    else:
+        outputs = file.getElementsByTagName(tag_prefix + "outputs")[0]
+        dumpInitValues = file.createElement(tag_prefix + "dumpInitValues")
+        dumpInitValues.setAttribute("local", "true")
+        dumpInitValues.setAttribute("global", "true")
+        outputs.appendChild(dumpInitValues)
+
+    with open(jobsfile, "w") as out:
+        # out.write(file.toprettyxml())
+        file.writexml(out)
+        out.close()
+
+
 def change_curve_file(jobsfile, curvefilename, tag_prefix=""):
     file = minidom.parse(jobsfile)
     curves = file.getElementsByTagName(tag_prefix + "curves")[0]
@@ -217,7 +231,7 @@ def change_jobs_file(jobsfile, dydfilename, tag_prefix=""):
         out.close()
 
 
-def gen_all_curves(
+def gen_all_curves_from_original(
     case_name,
     case_dir,
     output_dir,
@@ -251,14 +265,78 @@ def gen_all_curves(
 
     dydfile = case_dir + "/{}.dyd".format(case_name)
     os.system(
-        """sed -n 's/.*id="\\([^"]*\\).*/\\1/p' {} > {}/models.txt """.format(
-            dydfile, output_dir
-        )
+        """sed -n 's/.*id="\\([^"]*\\).*/\\1/p' {} > {}/models.txt """.format(dydfile, output_dir)
     )
-    os.system(
-        "sh genallcrv.sh {}/models.txt {}/{}.txt".format(output_dir, output_dir, target)
-    )
+    os.system("sh genallcrv.sh {}/models.txt {}/{}.txt".format(output_dir, output_dir, target))
 
     # Generate terminals crv fileyyy
     os.system("mv allcurves.crv {}/{}_{}.crv".format(output_dir, case_name, target))
     logging.info("generated allcurves_{}.crv".format(target))
+
+
+def gen_all_curves_fast(
+    case_name,
+    case_dir,
+    output_dir,
+    remove_previous,
+):
+
+    # Get generators of dyd file and create the new curves file
+
+    dyd_path = case_dir + "/{}.dyd".format(case_name)
+    dydfile = minidom.parse(dyd_path)
+
+    blackBoxModel = dydfile.getElementsByTagName("dyn:blackBoxModel")
+
+    model_gen_names = []
+
+    for element in blackBoxModel:
+        lib_name = element.getAttribute("lib")
+        if lib_name[:9] == "Generator":
+            model_gen_names.append(element.getAttribute("id"))
+
+    # Modify original curves file
+    crv_path = case_dir + "/{}.crv".format(case_name)
+    crvfile = minidom.parse(crv_path)
+
+    curvesInput = crvfile.getElementsByTagName("curvesInput")[0]
+    if remove_previous:
+        curves = curvesInput.getElementsByTagName("curve")
+        for curve in curves:
+            curve.parentNode.removeChild(curve)
+
+    for gen_name in model_gen_names:
+        gen_crv1 = crvfile.createElement("curve")
+        gen_crv1.setAttribute("model", gen_name)
+        gen_crv1.setAttribute("variable", "generator_terminal_V_im")
+        curvesInput.appendChild(gen_crv1)
+
+        gen_crv2 = crvfile.createElement("curve")
+        gen_crv2.setAttribute("model", gen_name)
+        gen_crv2.setAttribute("variable", "generator_terminal_V_re")
+        curvesInput.appendChild(gen_crv2)
+
+        gen_crv3 = crvfile.createElement("curve")
+        gen_crv3.setAttribute("model", gen_name)
+        gen_crv3.setAttribute("variable", "generator_terminal_i_im")
+        curvesInput.appendChild(gen_crv3)
+
+        gen_crv4 = crvfile.createElement("curve")
+        gen_crv4.setAttribute("model", gen_name)
+        gen_crv4.setAttribute("variable", "generator_terminal_i_re")
+        curvesInput.appendChild(gen_crv4)
+
+        gen_crv5 = crvfile.createElement("curve")
+        gen_crv5.setAttribute("model", gen_name)
+        gen_crv5.setAttribute("variable", "generator_omegaRefPu_value")
+        curvesInput.appendChild(gen_crv5)
+
+    crv_path_output = output_dir + "/{}_terminals.crv".format(case_name)
+    # Write output without whitespaces
+    with open(crv_path_output, "w") as out:
+        xml_str = crvfile.toprettyxml()
+        xml_str = os.linesep.join([s for s in xml_str.splitlines() if s != "	" and s])
+        out.write(xml_str)
+        out.close()
+
+    logging.info("generated gen_all_curves_fast {}.crv".format(case_name))
