@@ -196,12 +196,12 @@ def add_ini_par_file(jobsfile, tag_prefix=""):
     dumpInitValues = file.getElementsByTagName(tag_prefix + "dumpInitValues")
     if dumpInitValues:
         dumpInitValues = dumpInitValues[0]
-        dumpInitValues.setAttribute("local", "true")
+        dumpInitValues.setAttribute("local", "false")
         dumpInitValues.setAttribute("global", "true")
     else:
         outputs = file.getElementsByTagName(tag_prefix + "outputs")[0]
         dumpInitValues = file.createElement(tag_prefix + "dumpInitValues")
-        dumpInitValues.setAttribute("local", "true")
+        dumpInitValues.setAttribute("local", "false")
         dumpInitValues.setAttribute("global", "true")
         outputs.appendChild(dumpInitValues)
 
@@ -286,14 +286,14 @@ def gen_all_curves_fast(
     dyd_path = case_dir + "/{}.dyd".format(case_name)
     dydfile = minidom.parse(dyd_path)
 
+    # TODO: Check if 'dyn:' is in all cases
     blackBoxModel = dydfile.getElementsByTagName("dyn:blackBoxModel")
 
-    model_gen_names = []
-
-    for element in blackBoxModel:
-        lib_name = element.getAttribute("lib")
-        if lib_name[:9] == "Generator":
-            model_gen_names.append(element.getAttribute("id"))
+    model_gen_names = [
+        element.getAttribute("id")
+        for element in blackBoxModel
+        if "Generator" in element.attributes["lib"].value
+    ]
 
     # Modify original curves file
     crv_path = case_dir + "/{}.crv".format(case_name)
