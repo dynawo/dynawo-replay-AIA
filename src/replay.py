@@ -21,9 +21,7 @@ def gen_table(csvfile, output_dir):
     # Create new table file
     df = pd.read_csv(csvfile, sep=";")
     time = df.iloc[:, 0]
-    term_names = [
-        x.split("_V_re")[0].replace(" ", "-") for x in df.columns[1:-1] if "V_re" in x
-    ]
+    term_names = [x.split("_V_re")[0].replace(" ", "-") for x in df.columns[1:-1] if "V_re" in x]
     omega_names = [x.replace(" ", "-") for x in df.columns[1:-1] if "omega" in x]
     with open(output_dir + "table.txt", "w") as f:
         f.write("#1\n")
@@ -37,9 +35,7 @@ def gen_table(csvfile, output_dir):
             cols = df[[terminal + "_V_re", terminal + "_V_im"]]
             U = np.sqrt(cols[terminal + "_V_re"] ** 2 + cols[terminal + "_V_im"] ** 2)
             UPhase = np.arctan2(cols[terminal + "_V_im"], cols[terminal + "_V_re"])
-            terminal = terminal.replace(
-                " ", "-"
-            )  # need to remove spaces in column names in table
+            terminal = terminal.replace(" ", "-")  # need to remove spaces in column names in table
             f.write("\ndouble {}({},2)\n".format(terminal + "_U", len(U)))
             np.savetxt(f, np.array([time, U]).T, fmt="%.10f")
             f.write("\ndouble {}({},2)\n".format(terminal + "_UPhase", len(U)))
@@ -88,9 +84,7 @@ def get_gen_params(parfile, models_dict, tagPrefix=""):
             print(value["dyd"].attributes["id"].value)
             continue
         params = params[0]
-        params.setAttribute(
-            "dydId", value["dyd"].attributes["id"].value
-        )  # set parId to id
+        params.setAttribute("dydId", value["dyd"].attributes["id"].value)  # set parId to id
         # get_refs(params, models_dict, iidmfile)
         models_dict[key]["par"] = params
     return models_dict
@@ -102,9 +96,7 @@ def get_solver_params(jobsfile, parfile, system, tagPrefix=""):
     solver = jobs.getElementsByTagName("solver")[0]
     parsets = par.getElementsByTagName(tagPrefix + "set")
     system["solver"] = [
-        x
-        for x in parsets
-        if solver.attributes["parId"].value == x.attributes["id"].value
+        x for x in parsets if solver.attributes["parId"].value == x.attributes["id"].value
     ][0]
 
 
@@ -123,15 +115,10 @@ def get_refs(generators, parsets, iidmfile):
         gen = [
             x
             for x in iidm_generators
-            if x.attributes["id"].value in dyd_gen_id
-            or dyd_gen_id in x.attributes["id"].value
+            if x.attributes["id"].value in dyd_gen_id or dyd_gen_id in x.attributes["id"].value
         ]
         if len(gen) == 0:
-            print(
-                "Generator for references in set {} not found".format(
-                    s.attributes["id"].value
-                )
-            )
+            print("Generator for references in set {} not found".format(s.attributes["id"].value))
             continue
         gen = gen[0]
         for r in refs:
@@ -157,9 +144,7 @@ def get_refs(generators, parsets, iidmfile):
                     for x in iidm.getElementsByTagName("iidm:bus")
                     if x.attributes["id"].value == gen.attributes["bus"].value
                 ][0]
-                r.setAttribute(
-                    "value", str(float(bus.attributes["angle"].value) * (np.pi / 180))
-                )
+                r.setAttribute("value", str(float(bus.attributes["angle"].value) * (np.pi / 180)))
     # logs = file.createElement(tagPrefix+'logs')
     # app1 = file.createElement(tagPrefix+'appender')
     # app1.setAttribute('tag', '')
@@ -261,16 +246,8 @@ def gen_par(system, output):
   </set>
   {% endfor -%}
 
-   <set id="IDAOrder2">
-    <par type="INT" name="order" value="2"/>
-    <par type="DOUBLE" name="initStep" value="1e-9"/>
-    <par type="DOUBLE" name="minStep" value="1e-9"/>
-    <par type="DOUBLE" name="maxStep" value="1"/>
-    <par type="DOUBLE" name="absAccuracy" value="1e-6"/>
-    <par type="DOUBLE" name="relAccuracy" value="1e-6"/>
-    <par type="DOUBLE" name="minimalAcceptableStep" value="1e-10"/>
-    <par type="INT" name="maximumNumberSlowStepIncrease" value="40"/>
-  </set>
+   {{ system['solver'].toxml() }}
+   
 </parametersSet>
     """
     template = jinja2.Template(template_src)
