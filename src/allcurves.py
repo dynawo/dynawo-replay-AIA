@@ -211,6 +211,22 @@ def add_ini_par_file(jobsfile, tag_prefix=""):
         out.close()
 
 
+def add_precision_jobs_file(jobsfile):
+    file = minidom.parse(jobsfile)
+    simulation = file.getElementsByTagName("simulation")[0]
+    system = {}
+
+    if "precision" not in simulation.attributes:
+        simulation.setAttribute("precision", "1e-8")
+
+    with open(jobsfile, "w") as out:
+        # out.write(file.toprettyxml())
+        file.writexml(out)
+        out.close()
+
+    return system
+
+
 def change_curve_file(jobsfile, curvefilename, tag_prefix=""):
     file = minidom.parse(jobsfile)
     curves = file.getElementsByTagName(tag_prefix + "curves")[0]
@@ -279,6 +295,7 @@ def gen_all_curves_fast(
     case_dir,
     output_dir,
     remove_previous,
+    tagPrefix="",
 ):
 
     # Get generators of dyd file and create the new curves file
@@ -286,8 +303,12 @@ def gen_all_curves_fast(
     dyd_path = case_dir + "/{}.dyd".format(case_name)
     dydfile = minidom.parse(dyd_path)
 
-    # TODO: Check if 'dyn:' is in all cases
-    blackBoxModel = dydfile.getElementsByTagName("dyn:blackBoxModel")
+    blackBoxModel = dydfile.getElementsByTagName(tagPrefix + "blackBoxModel")
+    if len(blackBoxModel) == 0:
+        print(
+            "No generators found in the model. Please, check if the file tags have any prefix (dyn:), and provide it through the options."
+        )
+        exit()
 
     model_gen_names = [
         element.getAttribute("id")
