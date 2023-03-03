@@ -1,7 +1,6 @@
 import os, shutil, jinja2
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 from xml.dom import minidom
 import allcurves as allcurves_code
 import logging, datetime
@@ -21,8 +20,10 @@ def gen_table(csvfile, output_dir):
     # Create new table file
     df = pd.read_csv(csvfile, sep=";")
     time = df.iloc[:, 0]
-    term_names = [x.split("_V_re")[0].replace(" ", "-") for x in df.columns[1:-1] if "V_re" in x]
-    omega_names = [x.replace(" ", "-") for x in df.columns[1:-1] if "omega" in x]
+    # term_names = [x.split("_V_re")[0].replace(" ", "-") for x in df.columns[1:-1] if "V_re" in x]
+    term_names = [x.split("_V_re")[0].replace(" ", " ") for x in df.columns[1:-1] if "V_re" in x]
+    omega_names = [x.replace(" ", " ") for x in df.columns[1:-1] if "omega" in x]
+    # omega_names = [x.replace(" ", "-") for x in df.columns[1:-1] if "omega" in x]
     with open(output_dir + "table.txt", "w") as f:
         f.write("#1\n")
         for omega in omega_names:
@@ -104,7 +105,9 @@ def get_refs(generators, parsets, iidmfile):
     if not os.path.isfile(iidmfile):
         return 0
     iidm = minidom.parse(iidmfile)
-    iidm_generators = iidm.getElementsByTagName("iidm:generator")
+    iidm_generators = iidm.getElementsByTagName("generator")
+    if len(iidm_generators) == 0:
+        iidm_generators = iidm.getElementsByTagName("iidm:generator")
     for s in parsets:
         refs = s.getElementsByTagName("reference")
         dyd_gen_id = [
@@ -303,7 +306,7 @@ def remove_namespaces(file, tag):
     os.system("sed -i 's/<\\/{}:/<\\//g' {}".format(tag, file))
 
 
-def gen_replay_files(root_dir, model, terminals_csv, output_dir):
+def gen_replay_files(root_dir, model, terminals_csv, output_dir, tagPrefix):
     os.makedirs(output_dir, exist_ok=True)
 
     # Generate the replay table file
@@ -323,7 +326,11 @@ def gen_replay_files(root_dir, model, terminals_csv, output_dir):
     system = get_jobs_config(in_jobs)
 
     # Get list of all dyd gens
-    gen_dict = get_generators(in_dyd, "dyn:")
+    gen_dict = get_generators(in_dyd, tagPrefix)
+
+    # TODO: At the moment the original parameters are used, in
+    # the future, to save memory, only the generator parameters
+    # with these functions could be selected
 
     # Add gen initilization params
     get_gen_params(in_par, gen_dict)
@@ -342,6 +349,8 @@ def gen_replay_files(root_dir, model, terminals_csv, output_dir):
     # Generate the replay simulation files with all the data obtained above
     gen_jobs(system, out_jobs)
     gen_dyd(system, out_dyd)
+
+    # TODO: I'm here
     gen_par(system, out_par)
 
     # TODO: Study what curves should be replayed and modify this part
