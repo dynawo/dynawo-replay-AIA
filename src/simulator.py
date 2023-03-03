@@ -215,6 +215,85 @@ def plot_csv(csvfile, outputfile, title="Simulation", num_curves=5):
     plt.close("all")
 
 
+def calc_steady(time_values, curve_values, stable_time, ss_tol):
+
+    # Get curves file and stable time
+
+    if len(time_values) != len(curve_values):
+        raise NameError("curve values and time values have different length")
+
+    stable_time = float(stable_time)
+
+    if stable_time <= 0:
+        raise NameError("stable time is a non-valid value")
+
+    # Get the first position of stable time in the dataframe
+    time_pos = -1
+
+    real_time = time_values[-1] - stable_time
+
+    for i in range(len(time_values)):
+        if real_time <= time_values[i]:
+            time_pos = i
+            break
+
+    if time_pos == -1:
+        raise NameError("stable time is bigger than simulation time")
+
+    lst_val = curve_values[time_pos:]
+
+    # If the value is less than 1, we use absolute value
+    if abs(lst_val[-1]) <= 1:
+        mean_val_max = lst_val[-1] + ss_tol
+        mean_val_min = lst_val[-1] - ss_tol
+    # If the value is more than 1, we use relative value
+    else:
+        mean_val = lst_val[-1]
+        mean_val_max = mean_val + abs(ss_tol * mean_val)
+        mean_val_min = mean_val - abs(ss_tol * mean_val)
+
+    # Check all values inside the stable time
+    stable = True
+    for i in lst_val:
+        if i < mean_val_min or i > mean_val_max:
+            stable = False
+            break
+
+    first_stable = -1
+    if stable:
+        # Get the first position of the stabilization
+        lst_val = curve_values
+        first_stable = 0
+        for i in range(len(lst_val)):
+            pos = len(lst_val) - (i + 1)
+            if lst_val[pos] < mean_val_min or lst_val[pos] > mean_val_max:
+                first_stable = pos
+                break
+
+    # returns true if the stabilization is reached and returns its position in the given
+    # lists
+    return stable, curve_values[first_stable] if stable else 999999999
+
+
+def get_metrics(values_1, times_1, values_2, times_2, ss_time, ss_tol):
+    # Calc Time to steady
+    stable1, TSS_1 = calc_steady(times_1, values_1, ss_time, ss_tol)
+    stable2, TSS_2 = calc_steady(times_2, values_2, ss_time, ss_tol)
+
+    TT = abs(TSS_1 - TSS_2)
+
+    # Calc Diff peak to peak
+    dPP = abs(abs(max(values_1) - min(values_1)) - abs(max(values_2) - min(values_2)))
+
+    # Calc Diff steady state
+    if stable1 and stable2:
+        dSS = abs(values_1[-1] - values_2[-1])
+    else:
+        dSS = 999999999
+
+    return TT, dPP, dSS
+
+
 def original_vs_replay(original_csv, replay_csv, outputdir, title="Simulation"):
     df = pd.read_csv(original_csv, sep=";")
     t = df.iloc[:, 0]
@@ -225,7 +304,11 @@ def original_vs_replay(original_csv, replay_csv, outputdir, title="Simulation"):
     with open(outputdir + "vars.txt", "a") as f:
         f.write(replay_csv + "\t")
         f.write("Original: {}, replay: {} \n".format(df.shape, df2.shape))
+
+    dict_metrics = {"CurveName": [], "TT": [], "dPP": [], "dSS": []}
     for c in df2.columns:
+        TT, dPP, dSS = get_metrics(list(df[c]), list(t), list(df2[c]), list(t2), 3, 0.005)
+
         plt.plot(t, df[c], label="original")
         plt.plot(t2, df2[c], label="replay", linestyle="--")
         plt.xlabel("Time (s)")
@@ -233,6 +316,14 @@ def original_vs_replay(original_csv, replay_csv, outputdir, title="Simulation"):
         plt.legend()
         plt.savefig(outputdir + "/" + c + ".png", dpi=300)
         plt.close("all")
+        dict_metrics["CurveName"].append(c)
+        dict_metrics["TT"].append(TT)
+        dict_metrics["dPP"].append(dPP)
+        dict_metrics["dSS"].append(dSS)
+
+    df_metrics = pd.DataFrame.from_dict(dict_metrics)
+
+    df_metrics.to_csv(outputdir + "../metrics.csv", sep=";")
 
 
 def original_vs_replay_generators(original_csv, replay_dir):
