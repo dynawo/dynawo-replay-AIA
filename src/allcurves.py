@@ -1,12 +1,8 @@
-import os, shutil
-import pandas as pd
+import os
 import numpy as np
 import matplotlib.pyplot as plt
-import glob
-import subprocess
-import logging, datetime
+import logging
 from xml.dom import minidom
-from sklearn.utils.extmath import randomized_svd
 
 
 def add_logs(jobsfilename, tagPrefix=""):
@@ -31,32 +27,6 @@ def add_logs(jobsfilename, tagPrefix=""):
         # out.write(file.toprettyxml())
         file.writexml(out)
         out.close()
-
-
-def compress_and_save(df, name, target="states", outpath="results", ranks=[10], randomized=True):
-    df = np.array(df.iloc[:, 1:-1]).T
-    error = []
-    compression = []
-    os.makedirs(outpath + "/" + name, exist_ok=True)
-    for r in ranks:
-        np.random.RandomState(1)
-        f, (ax1, ax2) = plt.subplots(2, 1)
-        f.tight_layout(pad=2)
-        idx = np.random.permutation(np.arange(df.shape[0]))[0:60]
-        ax1.plot(df[idx, :].T)
-        ax1.set_title(name)
-        # plt.savefig("plots/curves_{}.png".format(filename))
-        if randomized:
-            u, d, v = randomized_svd(df, r)
-        else:
-            u, d, v = np.linalg.svd(np.matrix(g(d[0:r]), v[0:r, :]))
-        with open(
-            outpath + "/{}/{}_{}_compressed_rank_{}.npy".format(name, name, target, r),
-            "wb",
-        ) as f:
-            np.save(f, u)
-            np.save(f, d)
-            np.save(f, v)
 
 
 def reconstruct_from_disk(name, target="states", path="results", ranks=[10]):
@@ -100,7 +70,7 @@ def plot_results(df, dfsize, name, target="states", path="results", ranks=[10]):
             bbox_inches="tight",
         )
         plt.close("all")
-        ##########
+
         f, (ax1, ax2) = plt.subplots(2, 1)
         f.tight_layout(pad=3)
         ax1.plot(u[:, 0:r])
@@ -123,72 +93,6 @@ def plot_results(df, dfsize, name, target="states", path="results", ranks=[10]):
         )
         plt.close("all")
     return error, compression
-
-
-def plot_svd(df, filename, ranks=[10], randomized=True):
-    df = np.array(df.iloc[:, 1:-1]).T
-    error = []
-    compression = []
-    os.makedirs("plots/" + filename, exist_ok=True)
-    for r in ranks:
-        np.random.RandomState(1)
-        f, (ax1, ax2) = plt.subplots(2, 1)
-        f.tight_layout(pad=2)
-        idx = np.random.permutation(np.arange(df.shape[0]))[0:60]
-        ax1.plot(df[idx, :].T)
-        ax1.set_title(filename)
-        # plt.savefig("plots/curves_{}.png".format(filename))
-        if randomized:
-            u, d, v = randomized_svd(df, r)
-        else:
-            u, d, v = np.linalg.svd(np.matrix(g(d[0:r]), v[0:r, :]))
-        with open("results/{}/{}_compressed_rank_{}.npy".format(filename, filename, r)) as f:
-            np.save(f, u)
-            np.save(f, d)
-            np.save(f, v)
-        M_r = np.dot(u[:, 0:r], np.dot(np.diag(d[0:r]), v[0:r, :]))
-        N, M = df.shape
-        M_r_size = N * r + r + M * r
-        c = M_r_size / (N * M)
-        compression.append(c)
-        e = np.linalg.norm(df - M_r, ord="fro")
-        error.append(e)
-        ax2.plot(M_r[idx, :].T)
-        ax2.set_title("LRA  |  r = {}  |  c = {:0.4f}  |  e = {:0.4f}".format(r, c, e))
-        plt.savefig(
-            "results/{}/{}_curves_rank_{}.png".format(filename, filename, r),
-            dpi=300,
-            bbox_inches="tight",
-        )
-        plt.close("all")
-        ##########
-        f, (ax1, ax2) = plt.subplots(2, 1)
-        f.tight_layout(pad=3)
-        ax1.plot(u[:, 0:r])
-        ax1.set_title("Top {} left SV".format(r))
-        ax2.plot(v[0:r, :].T)
-        ax2.set_title("Top {} right SV".format(r))
-        plt.savefig(
-            "results/{}/{}_rank_{}.png".format(filename, filename, r),
-            dpi=300,
-            bbox_inches="tight",
-        )
-        plt.close("all")
-        plt.figure()
-        plt.plot(d)
-        plt.title(filename)
-        plt.savefig(
-            "results/{}/{}_eigvals_{}.png".format(filename, filename, r),
-            dpi=300,
-            bbox_inches="tight",
-        )
-        plt.close("all")
-    return error, compression
-    # M = np.array(df.iloc[:,1:-1])
-    # Cxx = np.cov(M.T)
-    # plt.imshow(Cxx)
-    # plt.colorbar()
-    # plt.savefig("plots/C_{}.png".format(filename))
 
 
 def add_ini_par_file(jobsfile, tag_prefix=""):
@@ -245,49 +149,6 @@ def change_jobs_file(jobsfile, dydfilename, tag_prefix=""):
         # out.write(file.toprettyxml())
         file.writexml(out)
         out.close()
-
-
-def gen_all_curves_from_original(
-    case_name,
-    case_dir,
-    output_dir,
-    jobs_file,
-    target="states",
-    newvarlogs=False,
-    recursive=True,
-):
-    # os.system("""egrep -rl '<dyn:' {}/ | xargs -I sed -i '' 's/<dyn:/</g'  """.format(dir))
-
-    output_jobs_file = case_dir + jobs_file
-
-    logfile = case_dir + "/outputs/logs/dynawoVariables.log"
-
-    # Get data from output simulations
-    os.system(
-        """sed -n '/X variables$/,/alias/p' {} | sed 's/.* DEBUG | [0-9]\+ \\(.*\\)/\\1/p' >> {}/states.txt """.format(
-            logfile, output_dir
-        )
-    )
-    os.system(
-        """ sed -n '/X variables$/,/alias/p' {} | sed '/terminal/!d' | sed 's/.* DEBUG | [0-9]\+ \\(.*\\)/\\1/p' >>  {}/terminals.txt """.format(
-            logfile, output_dir
-        )
-    )
-    os.system(
-        """ sed -n '/X variables$/,/alias/p' {} | sed '/omegaRefPu/!d' | sed 's/.* DEBUG | [0-9]\+ \\(.*\\)/\\1/p' >>  {}/terminals.txt """.format(
-            logfile, output_dir
-        )
-    )
-
-    dydfile = case_dir + "/{}.dyd".format(case_name)
-    os.system(
-        """sed -n 's/.*id="\\([^"]*\\).*/\\1/p' {} > {}/models.txt """.format(dydfile, output_dir)
-    )
-    os.system("sh genallcrv.sh {}/models.txt {}/{}.txt".format(output_dir, output_dir, target))
-
-    # Generate terminals crv fileyyy
-    os.system("mv allcurves.crv {}/{}_{}.crv".format(output_dir, case_name, target))
-    logging.info("generated allcurves_{}.crv".format(target))
 
 
 def gen_all_curves_fast(

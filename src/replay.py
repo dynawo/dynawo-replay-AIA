@@ -1,9 +1,9 @@
-import os, shutil, jinja2
+import os
+import jinja2
 import pandas as pd
 import numpy as np
 from xml.dom import minidom
-import allcurves as allcurves_code
-import logging, datetime
+
 
 # logging.basicConfig(
 #     filename='replay.log',
@@ -28,10 +28,10 @@ def gen_table(csvfile, output_dir):
     with open(output_dir + "table.txt", "w") as f:
         f.write("#1\n")
         for omega in omega_names:
-            O = df[omega]
+            Omg = df[omega]
             # f.write('#1\n double OmegaRefPu({},2)\n 0 1\n {} 1\n'.format(time.iloc[-1]))
-            f.write("\ndouble {}({},2)\n".format(omega, len(O)))
-            np.savetxt(f, np.array([time, O]).T, fmt="%.10f")
+            f.write("\ndouble {}({},2)\n".format(omega, len(Omg)))
+            np.savetxt(f, np.array([time, Omg]).T, fmt="%.10f")
     with open(output_dir + "table.txt", "a") as f:
         for terminal in term_names:
             cols = df[[terminal + "_V_re", terminal + "_V_im"]]
@@ -138,7 +138,6 @@ def get_refs(generators, parsets, iidmfile):
             elif "Q0Pu" in r_name:
                 r.setAttribute("value", str(float(gen.attributes["q"].value) / 100))
             elif "U0Pu" in r_name:
-                vlevel = gen.parentNode.attributes["nominalV"]
                 r.setAttribute(
                     "value",
                     str(
@@ -269,7 +268,7 @@ def gen_par(system, output):
   {% endfor -%}
 
    {{ system['solver'].toxml() }}
-   
+
 </parametersSet>
     """
     template = jinja2.Template(template_src)
@@ -281,13 +280,6 @@ def gen_par(system, output):
                 infinite_bus_table=system["infinite_bus_table"],
             )
         )
-
-
-# TODO: Substitute the IDA solver for the first line above in order to get the original params from simulation
-# {{ system['solver'].toxml() }}
-# {% for param in modelpars.getElementsByTagName('reference') -%}
-# <par name="{{param.attributes['name'].value}}" type="{{param.attributes['type'].value}}" value="1"/>
-# {% endfor -%}
 
 
 def gen_par_IBus(system, output, parlist):
@@ -396,41 +388,6 @@ def solve_references(par_file, dumpinit_folder):
         out.close()
 
 
-def gen_crv(system, output):
-    models = [x["dyd"] for x in system["generators"].values()]
-    template_src = """<?xml version='1.0' encoding='UTF-8'?>
-<!--
-Copyright (c) 2022, RTE (http://www.rte-france.com)
-See AUTHORS.txt
-All rights reserved.
-This Source Code Form is subject to the terms of the Mozilla Public
-License, v. 2.0. If a copy of the MPL was not distributed with this
-file, you can obtain one at http://mozilla.org/MPL/2.0/.
-SPDX-License-Identifier: MPL-2.0
-
-This file is part of Dynawo, an hybrid C++/Modelica open source suite of
-simulation tools for power systems.
--->
-<curvesInput xmlns="http://www.rte-france.com/dynawo">
-    {% for model in models %}
-    <curve model="{{model.attributes['id'].value}}" variable="generator_termina_V_re"/>
-    <curve model="{{model.attributes['id'].value}}" variable="generator_termina_V_im"/>
-    <curve model="{{model.attributes['id'].value}}" variable="generator_termina_I_re"/>
-    <curve model="{{model.attributes['id'].value}}" variable="generator_termina_I_re"/>
-    {% endfor %}
-</curvesInput>
-    """
-    template = jinja2.Template(template_src)
-
-    with open(output, "w") as f:
-        f.write(template.render(models=models))
-
-
-def remove_namespaces(file, tag):
-    os.system("sed -i 's/<{}:/</g' {}".format(tag, file))
-    os.system("sed -i 's/<\\/{}:/<\\//g' {}".format(tag, file))
-
-
 def gen_replay_files(root_dir, model, terminals_csv, output_dir, tagPrefix):
     os.makedirs(output_dir, exist_ok=True)
 
@@ -443,9 +400,6 @@ def gen_replay_files(root_dir, model, terminals_csv, output_dir, tagPrefix):
     out_jobs, out_par, out_dyd, out_iidm, out_crv = [
         output_dir + model + x for x in [".jobs", ".par", ".dyd", ".iidm", ".crv"]
     ]
-
-    # remove_namespaces(in_dyd, 'dyn')
-    # remove_namespaces(in_iidm, 'iidm')
 
     # Get simulation config params
     system = get_jobs_config(in_jobs)
