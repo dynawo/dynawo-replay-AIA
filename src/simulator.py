@@ -1,21 +1,17 @@
-import os, shutil, jinja2
-import pandas as pd
-import numpy as np
+import os
+import logging
+import datetime
+import argparse
 import subprocess
+import pandas as pd
 import matplotlib.pyplot as plt
-from xml.dom import minidom
 import allcurves as allcurves_code
 import replay as replay_code
-import logging, datetime
-from pathlib import Path
-import matplotlib.pyplot as plt
-import argparse
 
 
 def parser_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("run_mode")
     parser.add_argument("root_dir")
     parser.add_argument("output_dir")
     parser.add_argument("dynawo_path")
@@ -23,76 +19,9 @@ def parser_args():
     parser.add_argument("-r", "--run_original", action="store_true")
     parser.add_argument("-g", "--gen_crv", action="store_true")
     parser.add_argument("-c", "--gen_csv", action="store_true")
-    parser.add_argument("-s", "--single_gen", action="store_true")
 
     args = parser.parse_args()
     return args
-
-
-def compress_reconstruct(
-    jobs_file_path,
-    dynawo_path,
-    ranks=[10],
-    gen_curves=True,
-    gen_csv=True,
-    target="states",
-):
-    error = {}
-    compression = {}
-    print(jobs_file_path)
-    name = subprocess.getoutput("basename " + jobs_file_path).split(".")[0]
-    dir = subprocess.getoutput("dirname " + jobs_file_path)
-    start = datetime.datetime.now()
-    logging.info("\nExecution of " + jobs_file_path + " started at " + str(start))
-    # begin pipeline execution
-    print("\n***\n" + jobs_file_path + "\n***\n")
-
-    if gen_curves:
-        gen_all_curves_original(jobs_file_path, target, True)
-    if gen_csv:
-        start_time = datetime.datetime.now()
-        os.system(dynawo_path + " jobs " + jobs_file_path)
-        end_time = datetime.datetime.now()
-
-        print("\nELAPSED TIME")
-        print(end_time - start_time)
-        print("\n\n\n")
-        os.system(
-            "mv {}/outputs/curves/curves.csv {}/outputs/curves/{}_curves.csv".format(
-                dir, dir, target
-            )
-        )
-        logging.info("finished Dynawo simulation")
-
-    csvfile = dir + "/outputs/curves/{}_curves.csv".format(target)
-    if not os.path.isfile(csvfile):
-        logging.error(csvfile + " does not exist")
-        return -1
-    df = pd.read_csv(csvfile, sep=";")
-    dfsize = os.path.getsize(csvfile)
-    logging.info("read CSV")
-
-    print("{} loaded".format(jobs_file_path))
-    compress_and_save(df, name, target, ranks=ranks)
-    logging.info("compressed matrix")
-    reconstructed = reconstruct_from_disk(name, target, ranks=ranks)
-    logging.info("reconstructed matrix")
-    error[name], compression[name] = plot_results(df, dfsize, name, target, ranks=ranks)
-    logging.info("plot results")
-    # log finish
-    end = datetime.datetime.now()
-    elapsed = end - start
-    logging.info(
-        "Execution of "
-        + jobs_file_path
-        + " finished at "
-        + str(end)
-        + ". Time elapsed: "
-        + str(elapsed)
-        + "\n"
-    )
-    logging.info("\n")
-    return error, compression
 
 
 def run_simulation(
@@ -108,19 +37,12 @@ def run_simulation(
     # Copy the case to the output dir
     os.makedirs(output_dir, exist_ok=True)
 
-    if base_case_dir != False:
+    if base_case_dir is not False:
         os.system("cp -rf {}* {}".format(base_case_dir, output_dir))
 
     allcurves_code.add_logs(output_jobs_file_path)
 
-    # TODO: Check where to define this part
-    # Delete namespaces tags
-    os.system("""sed -i 's/<dyn:/</g' '{}' """.format(output_jobs_file_path))
-    os.system("""sed -i 's/<\/dyn:/<\//g' '{}' """.format(output_jobs_file_path))
-    os.system("""sed -i 's/:dyn//g' '{}' """.format(output_jobs_file_path))
-
-    # TODO: Check if it's necessary
-    # Modify the input curves file name
+    # Modify the input curves file name and add dumpInit
     if add_ini_par:
         allcurves_code.add_ini_par_file(output_jobs_file_path)
     allcurves_code.change_curve_file(output_jobs_file_path, curves_file)
@@ -144,25 +66,16 @@ def replay(
     terminals_csv,
     output_dir,
     dynawo_path,
-    single_gen,
     tagPrefix,
 ):
-    # TODO: Check if its necessary
-    # os.makedirs(outdir + "/outputs", exist_ok=True)
-
     # Generate the replay files
     replay_code.gen_replay_files(base_case_dir, case_name, terminals_csv, output_dir, tagPrefix)
 
-    if single_gen:
-        replay_single_generators(case_name, output_dir, jobs_file, dynawo_path, tagPrefix)
-    else:
-        run_simulation(output_dir + name + ".jobs", crvfile, "", dynawo_path, cd_dir=True)
+    replay_single_generators(case_name, output_dir, jobs_file, dynawo_path, tagPrefix)
 
 
 def replay_single_generators(case_name, output_dir, jobs_file, dynawo_path, tagPrefix):
     dydfile = output_dir + case_name + ".dyd"
-
-    # TODO: Study what curves should be replayed
     crvfile_name = case_name + ".crv"
     crvfile = output_dir + crvfile_name
     # file = minidom.parse(dydfile)
@@ -197,21 +110,6 @@ def replay_single_generators(case_name, output_dir, jobs_file, dynawo_path, tagP
 
     with open(output_dir + "generators.txt", "w") as f:
         f.write("\n".join(gen_ids))
-
-
-def plot_csv(csvfile, outputfile, title="Simulation", num_curves=5):
-    df = pd.read_csv(csvfile, sep=";")
-    t = df.iloc[:, 0]
-    df = df.iloc[:, 1:-1]
-    N = df.shape[1]
-    if num_curves:
-        N = num_curves
-    plt.plot(t, df.iloc[:, 0:N])
-    plt.legend(df.columns[0:N])
-    plt.xlabel("Time (s)")
-    plt.title(title)
-    plt.savefig(outputfile, dpi=300)
-    plt.close("all")
 
 
 def calc_steady(time_values, curve_values, stable_time, ss_tol):
@@ -378,12 +276,8 @@ def runner(
     run_original,
     gen_crv,
     gen_csv,
-    single_gen,
     tagPrefix,
 ):
-    error = {}
-    compression = {}
-
     # Get the case name
     case_name = subprocess.getoutput("basename " + original_jobs_file_path).split(".")[0]
 
@@ -447,7 +341,6 @@ def runner(
 
     # Define csv paths
     terminals_csv = simulation_output_dir + "/terminals/outputs/curves/curves.csv"
-    replay_csv = simulation_output_dir + "/replay/outputs/curves/curves.csv"
     if run_original:
         original_csv = simulation_output_dir + "/terminals/outputs/curves/curves.csv"
     else:
@@ -457,83 +350,30 @@ def runner(
     logging.info("Plotting results")
 
     # Reconstruction of the curves
-    if single_gen:
-        replay(
-            case_name,
-            base_case_dir,
-            jobs_file,
-            terminals_csv,
-            simulation_output_dir + "replay/",
-            dynawo_path,
-            True,
-            tagPrefix,
-        )
-        logging.info("Finished replay")
+    replay(
+        case_name,
+        base_case_dir,
+        jobs_file,
+        terminals_csv,
+        simulation_output_dir + "replay/",
+        dynawo_path,
+        tagPrefix,
+    )
+    logging.info("Finished replay")
 
-        if run_original:
-            original_vs_replay_generators(original_csv, simulation_output_dir + "replay")
-    """
-    else:
-        replay(
-            jobs_file_path,
-            case_name + ".crv",
-            terminals_csv,
-            simulation_output_dir + "/replay/",
-            dynawo_path,
-            single_gen=False,
-        )
-        logging.info("Finished replay")
-        plot_csv(
-            original_csv,
-            simulation_output_dir + "{}_original.png".format(case_name),
-            title=case_name + " Original",
-        )
-        plot_csv(
-            replay_csv, simulation_output_dir + "{}_replay.png".format(case_name), title=case_name + " Replay"
-        )
-        original_vs_replay(
-            original_csv, replay_csv, simulation_output_dir , title=case_name + " Original vs Replay"
-        )
-    return error, compression
-"""
+    if run_original:
+        original_vs_replay_generators(original_csv, simulation_output_dir + "replay")
 
-
-"""
-root_dir = "examples_copy/DynaSwing"
-# root_dir='../data/examples/DynaSwing/WSCC9/WSCC9_Fault/WSCC9.jobs'
-root_dir = "../data/IEEE57/IEEE57_Fault/IEEE57.jobs"
-# root_dir='../data/smallcase/IEEE57.jobs'
-# root_dir='../data/FicheI3SM/FicheI3SM.jobs'
-# root_dir='../data/Kundur_Example13/KundurExample13.jobs'
-root_dir = "../data/examples/DynaSwing/IEEE14/IEEE14_Fault/IEEE14.jobs"
-# root_dir='../data/TestCase3/TestCase3.jobs'
-# root_dir='examples_copy/DynaSwing/GridForming_GridFollowing/DisconnectLine/'
-# root_dir='../data/largecase/tFin/fic.jobs'
-output_dir = "replay/"
-"""
 
 if __name__ == "__main__":
     args = parser_args()
 
-    if str(args.run_mode) == "1":
-        runner(
-            os.path.abspath(args.root_dir),
-            os.path.abspath(args.output_dir) + "/",
-            os.path.abspath(args.dynawo_path),
-            args.run_original,
-            args.gen_crv,
-            args.gen_csv,
-            args.single_gen,
-            args.tag_prefix,
-        )
-    elif str(args.run_mode) == "3":
-        compress_reconstruct(
-            os.path.abspath(args.root_dir),
-            os.path.abspath(args.dynawo_path),
-            [10],
-            args.gen_crv,
-            args.gen_csv,
-            "states",
-        )
-    else:
-        print("run_mode must be 1 or 3")
+    runner(
+        os.path.abspath(args.root_dir),
+        os.path.abspath(args.output_dir) + "/",
+        os.path.abspath(args.dynawo_path),
+        args.run_original,
+        args.gen_crv,
+        args.gen_csv,
+        args.tag_prefix,
+    )
