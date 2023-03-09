@@ -6,4 +6,5 @@ src/replay
 src/simulations
 src/__pycache__
 outputs
+src/*Results*
 
