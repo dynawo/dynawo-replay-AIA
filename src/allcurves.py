@@ -51,7 +51,8 @@ def compress_and_save(df, name, target="states", outpath="results", ranks=[10], 
         else:
             u, d, v = np.linalg.svd(np.matrix(g(d[0:r]), v[0:r, :]))
         with open(
-            outpath + "/{}/{}_{}_compressed_rank_{}.npy".format(name, name, target, r), "wb"
+            outpath + "/{}/{}_{}_compressed_rank_{}.npy".format(name, name, target, r),
+            "wb",
         ) as f:
             np.save(f, u)
             np.save(f, d)
@@ -168,7 +169,9 @@ def plot_svd(df, filename, ranks=[10], randomized=True):
         ax2.plot(v[0:r, :].T)
         ax2.set_title("Top {} right SV".format(r))
         plt.savefig(
-            "results/{}/{}_rank_{}.png".format(filename, filename, r), dpi=300, bbox_inches="tight"
+            "results/{}/{}_rank_{}.png".format(filename, filename, r),
+            dpi=300,
+            bbox_inches="tight",
         )
         plt.close("all")
         plt.figure()
@@ -186,6 +189,42 @@ def plot_svd(df, filename, ranks=[10], randomized=True):
     # plt.imshow(Cxx)
     # plt.colorbar()
     # plt.savefig("plots/C_{}.png".format(filename))
+
+
+def add_ini_par_file(jobsfile, tag_prefix=""):
+    file = minidom.parse(jobsfile)
+    dumpInitValues = file.getElementsByTagName(tag_prefix + "dumpInitValues")
+    if dumpInitValues:
+        dumpInitValues = dumpInitValues[0]
+        dumpInitValues.setAttribute("local", "false")
+        dumpInitValues.setAttribute("global", "true")
+    else:
+        outputs = file.getElementsByTagName(tag_prefix + "outputs")[0]
+        dumpInitValues = file.createElement(tag_prefix + "dumpInitValues")
+        dumpInitValues.setAttribute("local", "false")
+        dumpInitValues.setAttribute("global", "true")
+        outputs.appendChild(dumpInitValues)
+
+    with open(jobsfile, "w") as out:
+        # out.write(file.toprettyxml())
+        file.writexml(out)
+        out.close()
+
+
+def add_precision_jobs_file(jobsfile):
+    file = minidom.parse(jobsfile)
+    simulation = file.getElementsByTagName("simulation")[0]
+    system = {}
+
+    if "precision" not in simulation.attributes:
+        simulation.setAttribute("precision", "1e-8")
+
+    with open(jobsfile, "w") as out:
+        # out.write(file.toprettyxml())
+        file.writexml(out)
+        out.close()
+
+    return system
 
 
 def change_curve_file(jobsfile, curvefilename, tag_prefix=""):
@@ -208,33 +247,117 @@ def change_jobs_file(jobsfile, dydfilename, tag_prefix=""):
         out.close()
 
 
-def gen_all_curves(jobsfile, target="states", newvarlogs=False, recursive=True):
-    name = subprocess.getoutput("basename " + jobsfile).split(".")[0]
-    dir = subprocess.getoutput("dirname " + jobsfile)
+def gen_all_curves_from_original(
+    case_name,
+    case_dir,
+    output_dir,
+    jobs_file,
+    target="states",
+    newvarlogs=False,
+    recursive=True,
+):
     # os.system("""egrep -rl '<dyn:' {}/ | xargs -I sed -i '' 's/<dyn:/</g'  """.format(dir))
-    os.system("""sed -i 's/<dyn:/</g' {} """.format(jobsfile))
-    os.system("""sed -i 's/<\/dyn:/<\//g' {} """.format(jobsfile))
-    os.system("""sed -i 's/:dyn//g' {} """.format(jobsfile))
-    logfile = dir + "/outputs/logs/dynawoVariables.log"
-    states = subprocess.getoutput(
+
+    output_jobs_file = case_dir + jobs_file
+
+    logfile = case_dir + "/outputs/logs/dynawoVariables.log"
+
+    # Get data from output simulations
+    os.system(
         """sed -n '/X variables$/,/alias/p' {} | sed 's/.* DEBUG | [0-9]\+ \\(.*\\)/\\1/p' >> {}/states.txt """.format(
-            logfile, dir
+            logfile, output_dir
         )
     )
-    terminals = subprocess.getoutput(
+    os.system(
         """ sed -n '/X variables$/,/alias/p' {} | sed '/terminal/!d' | sed 's/.* DEBUG | [0-9]\+ \\(.*\\)/\\1/p' >>  {}/terminals.txt """.format(
-            logfile, dir
+            logfile, output_dir
         )
     )
     os.system(
         """ sed -n '/X variables$/,/alias/p' {} | sed '/omegaRefPu/!d' | sed 's/.* DEBUG | [0-9]\+ \\(.*\\)/\\1/p' >>  {}/terminals.txt """.format(
-            logfile, dir
+            logfile, output_dir
         )
     )
-    dydfile = dir + "/{}.dyd".format(name)
-    models = subprocess.getoutput(
-        """sed -n 's/.*id="\\([^"]*\\).*/\\1/p' {} > {}/models.txt """.format(dydfile, dir)
+
+    dydfile = case_dir + "/{}.dyd".format(case_name)
+    os.system(
+        """sed -n 's/.*id="\\([^"]*\\).*/\\1/p' {} > {}/models.txt """.format(dydfile, output_dir)
     )
-    os.system("sh genallcrv.sh {}/models.txt {}/{}.txt".format(dir, dir, target))
-    os.system("mv allcurves.crv {}/{}_{}.crv".format(dir, name, target))
+    os.system("sh genallcrv.sh {}/models.txt {}/{}.txt".format(output_dir, output_dir, target))
+
+    # Generate terminals crv fileyyy
+    os.system("mv allcurves.crv {}/{}_{}.crv".format(output_dir, case_name, target))
     logging.info("generated allcurves_{}.crv".format(target))
+
+
+def gen_all_curves_fast(
+    case_name,
+    case_dir,
+    output_dir,
+    remove_previous,
+    tagPrefix="",
+):
+
+    # Get generators of dyd file and create the new curves file
+
+    dyd_path = case_dir + "/{}.dyd".format(case_name)
+    dydfile = minidom.parse(dyd_path)
+
+    blackBoxModel = dydfile.getElementsByTagName(tagPrefix + "blackBoxModel")
+    if len(blackBoxModel) == 0:
+        print(
+            "No generators found in the model. Please, check if the file tags have any prefix (dyn:), and provide it through the options."
+        )
+        exit()
+
+    model_gen_names = [
+        element.getAttribute("id")
+        for element in blackBoxModel
+        if "Generator" in element.attributes["lib"].value
+    ]
+
+    # Modify original curves file
+    crv_path = case_dir + "/{}.crv".format(case_name)
+    crvfile = minidom.parse(crv_path)
+
+    curvesInput = crvfile.getElementsByTagName("curvesInput")[0]
+    if remove_previous:
+        curves = curvesInput.getElementsByTagName("curve")
+        for curve in curves:
+            curve.parentNode.removeChild(curve)
+
+    for gen_name in model_gen_names:
+        gen_crv1 = crvfile.createElement("curve")
+        gen_crv1.setAttribute("model", gen_name)
+        gen_crv1.setAttribute("variable", "generator_terminal_V_im")
+        curvesInput.appendChild(gen_crv1)
+
+        gen_crv2 = crvfile.createElement("curve")
+        gen_crv2.setAttribute("model", gen_name)
+        gen_crv2.setAttribute("variable", "generator_terminal_V_re")
+        curvesInput.appendChild(gen_crv2)
+
+        gen_crv3 = crvfile.createElement("curve")
+        gen_crv3.setAttribute("model", gen_name)
+        gen_crv3.setAttribute("variable", "generator_terminal_i_im")
+        curvesInput.appendChild(gen_crv3)
+
+        gen_crv4 = crvfile.createElement("curve")
+        gen_crv4.setAttribute("model", gen_name)
+        gen_crv4.setAttribute("variable", "generator_terminal_i_re")
+        curvesInput.appendChild(gen_crv4)
+
+        gen_crv5 = crvfile.createElement("curve")
+        gen_crv5.setAttribute("model", gen_name)
+        gen_crv5.setAttribute("variable", "generator_omegaRefPu_value")
+        curvesInput.appendChild(gen_crv5)
+
+    crv_path_output = output_dir + "/{}_terminals.crv".format(case_name)
+    # Write output without whitespaces
+    with open(crv_path_output, "w") as out:
+        xml_str = crvfile.toprettyxml()
+        xml_str = os.linesep.join([s for s in xml_str.splitlines() if s != "	" and s])
+        out.write(xml_str)
+        out.close()
+
+    logging.info("generated gen_all_curves_fast {}.crv".format(case_name))
