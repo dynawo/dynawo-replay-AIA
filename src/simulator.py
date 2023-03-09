@@ -115,9 +115,9 @@ def run_simulation(
 
     # TODO: Check where to define this part
     # Delete namespaces tags
-    os.system("""sed -i 's/<dyn:/</g' {} """.format(output_jobs_file_path))
-    os.system("""sed -i 's/<\/dyn:/<\//g' {} """.format(output_jobs_file_path))
-    os.system("""sed -i 's/:dyn//g' {} """.format(output_jobs_file_path))
+    os.system("""sed -i 's/<dyn:/</g' '{}' """.format(output_jobs_file_path))
+    os.system("""sed -i 's/<\/dyn:/<\//g' '{}' """.format(output_jobs_file_path))
+    os.system("""sed -i 's/:dyn//g' '{}' """.format(output_jobs_file_path))
 
     # TODO: Check if it's necessary
     # Modify the input curves file name
@@ -128,7 +128,7 @@ def run_simulation(
     allcurves_code.add_precision_jobs_file(output_jobs_file_path)
     # Run case
     start_time = datetime.datetime.now()
-    os.system(dynawo_path + " jobs " + output_jobs_file_path)
+    os.system(dynawo_path + ' jobs "' + output_jobs_file_path + '"')
     end_time = datetime.datetime.now()
     print("\nELAPSED TIME")
     print(end_time - start_time)
@@ -154,12 +154,12 @@ def replay(
     replay_code.gen_replay_files(base_case_dir, case_name, terminals_csv, output_dir, tagPrefix)
 
     if single_gen:
-        replay_single_generators(case_name, output_dir, jobs_file, dynawo_path)
+        replay_single_generators(case_name, output_dir, jobs_file, dynawo_path, tagPrefix)
     else:
         run_simulation(output_dir + name + ".jobs", crvfile, "", dynawo_path, cd_dir=True)
 
 
-def replay_single_generators(case_name, output_dir, jobs_file, dynawo_path):
+def replay_single_generators(case_name, output_dir, jobs_file, dynawo_path, tagPrefix):
     dydfile = output_dir + case_name + ".dyd"
 
     # TODO: Study what curves should be replayed
@@ -169,8 +169,9 @@ def replay_single_generators(case_name, output_dir, jobs_file, dynawo_path):
 
     # TODO: Change this in order to replay only the needed gens
     # Get list of all generators of the dyd case file
-    generators = replay_code.get_generators(dydfile, "dyn:")
+    generators = replay_code.get_generators(dydfile, tagPrefix)
     gen_ids = []
+
     for gen in generators:
         system = {}
         system["generators"] = {gen: generators[gen]}
@@ -178,22 +179,20 @@ def replay_single_generators(case_name, output_dir, jobs_file, dynawo_path):
         gen_id = generators[gen]["dyd"].attributes["id"].value
         gen_ids.append(gen_id)
 
-        output_dir_gen = output_dir + gen_id + "/"
+        output_dir_gen = (output_dir + gen_id + "/").replace(" ", "_")
         os.makedirs(output_dir_gen, exist_ok=True)
-        os.system("cp {}/{} {}/".format(output_dir, jobs_file, output_dir_gen))
-        os.system("cp {}/*.par {}/".format(output_dir, output_dir_gen))
-        os.system("cp {}/*.crv {}/".format(output_dir, output_dir_gen))
+        os.system("cp '{}/{}' '{}/'".format(output_dir, jobs_file, output_dir_gen))
+        os.system("cp '{}/'*.par '{}/'".format(output_dir, output_dir_gen))
+        os.system("cp '{}/'*.crv '{}/'".format(output_dir, output_dir_gen))
 
         gen_dydfile = output_dir_gen + gen_id + ".dyd"
         gen_jobs_file_path = output_dir_gen + jobs_file
 
         # Create the single gen file
-        replay_code.gen_dyd(system, gen_dydfile)
+        replay_code.gen_dyd(system, gen_dydfile, tagPrefix)
 
         allcurves_code.change_jobs_file(gen_jobs_file_path, gen_dydfile)
-
         run_simulation(False, jobs_file, crvfile, output_dir_gen, dynawo_path, True)
-
         logging.info("Replay generator " + gen_id)
 
     with open(output_dir + "generators.txt", "w") as f:
@@ -272,7 +271,7 @@ def calc_steady(time_values, curve_values, stable_time, ss_tol):
 
     # returns true if the stabilization is reached and returns its position in the given
     # lists
-    return stable, curve_values[first_stable] if stable else 999999999
+    return stable, time_values[first_stable] if stable else -999999999
 
 
 def get_metrics(values_1, times_1, values_2, times_2, ss_time, ss_tol):
@@ -283,47 +282,80 @@ def get_metrics(values_1, times_1, values_2, times_2, ss_time, ss_tol):
     TT = abs(TSS_1 - TSS_2)
 
     # Calc Diff peak to peak
-    dPP = abs(abs(max(values_1) - min(values_1)) - abs(max(values_2) - min(values_2)))
+    PP_1 = abs(max(values_1) - min(values_1))
+    PP_2 = abs(max(values_2) - min(values_2))
+    dPP = abs(PP_1 - PP_2)
 
     # Calc Diff steady state
     if stable1 and stable2:
-        dSS = abs(values_1[-1] - values_2[-1])
+        SS_1 = values_1[-1]
+        SS_2 = values_2[-1]
+        dSS = abs(SS_1 - SS_2)
     else:
-        dSS = 999999999
+        SS_1 = -999999999
+        SS_2 = -999999999
+        dSS = -999999999
 
-    return TT, dPP, dSS
+    return TT, TSS_1, TSS_2, dPP, PP_1, PP_2, dSS, SS_1, SS_2
 
 
 def original_vs_replay(original_csv, replay_csv, outputdir, title="Simulation"):
-    df = pd.read_csv(original_csv, sep=";")
-    t = df.iloc[:, 0]
-    df = df.iloc[:, 1:-1]
-    df2 = pd.read_csv(replay_csv, sep=";")
-    t2 = df2.iloc[:, 0]
-    df2 = df2.iloc[:, 1:-1]
-    with open(outputdir + "vars.txt", "a") as f:
-        f.write(replay_csv + "\t")
-        f.write("Original: {}, replay: {} \n".format(df.shape, df2.shape))
+    if (
+        os.path.isfile(original_csv)
+        and os.path.getsize(original_csv) > 0
+        and os.path.isfile(replay_csv)
+        and os.path.getsize(replay_csv) > 0
+    ):
+        df = pd.read_csv(original_csv, sep=";")
+        t = df.iloc[:, 0]
+        df = df.iloc[:, 1:-1]
+        df2 = pd.read_csv(replay_csv, sep=";")
+        t2 = df2.iloc[:, 0]
+        df2 = df2.iloc[:, 1:-1]
+        with open(outputdir + "vars.txt", "a") as f:
+            f.write(replay_csv + "\t")
+            f.write("Original: {}, replay: {} \n".format(df.shape, df2.shape))
 
-    dict_metrics = {"CurveName": [], "TT": [], "dPP": [], "dSS": []}
-    for c in df2.columns:
-        TT, dPP, dSS = get_metrics(list(df[c]), list(t), list(df2[c]), list(t2), 3, 0.005)
+        dict_metrics = {
+            "CurveName": [],
+            "TSS_Org": [],
+            "TSS_Rep": [],
+            "TT": [],
+            "PP_Org": [],
+            "PP_Rep": [],
+            "dPP": [],
+            "SS_Org": [],
+            "SS_Rep": [],
+            "dSS": [],
+        }
+        for c in df2.columns:
+            TT, TSS_1, TSS_2, dPP, PP_1, PP_2, dSS, SS_1, SS_2 = get_metrics(
+                list(df[c]), list(t), list(df2[c]), list(t2), 5, 0.002
+            )
 
-        plt.plot(t, df[c], label="original")
-        plt.plot(t2, df2[c], label="replay", linestyle="--")
-        plt.xlabel("Time (s)")
-        plt.title(title + " " + c)
-        plt.legend()
-        plt.savefig(outputdir + "/" + c + ".png", dpi=300)
-        plt.close("all")
-        dict_metrics["CurveName"].append(c)
-        dict_metrics["TT"].append(TT)
-        dict_metrics["dPP"].append(dPP)
-        dict_metrics["dSS"].append(dSS)
+            plt.plot(t, df[c], label="original")
+            plt.plot(t2, df2[c], label="replay", linestyle="--")
+            plt.xlabel("Time (s)")
+            plt.title(title + " " + c)
+            plt.legend()
+            plt.savefig(outputdir + "/" + c + ".png", dpi=300)
+            plt.close("all")
+            dict_metrics["CurveName"].append(c)
+            dict_metrics["TSS_Org"].append(TSS_1)
+            dict_metrics["TSS_Rep"].append(TSS_2)
+            dict_metrics["TT"].append(TT)
+            dict_metrics["PP_Org"].append(PP_1)
+            dict_metrics["PP_Rep"].append(PP_2)
+            dict_metrics["dPP"].append(dPP)
+            dict_metrics["SS_Org"].append(SS_1)
+            dict_metrics["SS_Rep"].append(SS_2)
+            dict_metrics["dSS"].append(dSS)
 
-    df_metrics = pd.DataFrame.from_dict(dict_metrics)
+        df_metrics = pd.DataFrame.from_dict(dict_metrics)
 
-    df_metrics.to_csv(outputdir + "../metrics.csv", sep=";")
+        df_metrics.to_csv(outputdir + "../metrics.csv", sep=";")
+    else:
+        print("No curves.csv file or no curves to compare in terminals or replay.")
 
 
 def original_vs_replay_generators(original_csv, replay_dir):
@@ -331,7 +363,7 @@ def original_vs_replay_generators(original_csv, replay_dir):
     with open(replay_dir + "/generators.txt") as file:
         generators = [line.rstrip() for line in file]
     for gen in generators:
-        gen_dir = "{}/{}/".format(replay_dir, gen)
+        gen_dir = "{}/{}/".format(replay_dir, gen).replace(" ", "_")
         fig_dir = gen_dir + "fig/"
         os.makedirs(fig_dir, exist_ok=True)
         with open(fig_dir + "vars.txt", "w") as f:
