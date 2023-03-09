@@ -12,6 +12,18 @@ from xml.dom import minidom
 #     datefmt='%Y-%m-%d %H:%M:%S')
 
 
+def get_tag_prefix(xml_file):
+    # Get namespace
+    tagPrefix = minidom._nssplit(xml_file.getElementsByTagName("*")[0].tagName)[0]
+
+    if tagPrefix is None:
+        tagPrefix = ""
+    else:
+        tagPrefix += ":"
+
+    return tagPrefix
+
+
 def gen_table(csvfile, output_dir):
     # Remove previous files
     if os.path.isfile(output_dir + "table.txt"):
@@ -47,8 +59,8 @@ def gen_table(csvfile, output_dir):
 
 
 def get_jobs_config(jobsfile):
-    file = minidom.parse(jobsfile)
-    simulation = file.getElementsByTagName("simulation")[0]
+    xml_file = minidom.parse(jobsfile)
+    simulation = xml_file.getElementsByTagName("simulation")[0]
     system = {}
     system["simulation"] = {
         "startTime": str(0),
@@ -63,9 +75,13 @@ def get_jobs_config(jobsfile):
     return system
 
 
-def get_generators(dydfile, tagPrefix):
-    file = minidom.parse(dydfile)
-    models = file.getElementsByTagName(tagPrefix + "blackBoxModel")
+def get_generators(dydfile):
+    xml_file = minidom.parse(dydfile)
+
+    # Get namespace
+    tagPrefix = get_tag_prefix(xml_file)
+
+    models = xml_file.getElementsByTagName(tagPrefix + "blackBoxModel")
     generators = [x for x in models if "Generator" in x.attributes["lib"].value]
     gen_dict = {}
     for gen in generators:
@@ -74,11 +90,15 @@ def get_generators(dydfile, tagPrefix):
     return gen_dict
 
 
-def get_gen_params(parfile, models_dict, tagPrefix=""):
+def get_gen_params(parfile, models_dict):
     # name = subprocess.getoutput('basename '+jobsfile).split('.')[0]
     # dir = subprocess.getoutput('dirname '+jobsfile)
-    file = minidom.parse(parfile)
-    parsets = file.getElementsByTagName(tagPrefix + "set")
+    xml_file = minidom.parse(parfile)
+
+    # Get namespace
+    tagPrefix = get_tag_prefix(xml_file)
+
+    parsets = xml_file.getElementsByTagName(tagPrefix + "set")
     # iidmfile = dir+name+'.iidm'
     # add parset to each model
     for key, value in models_dict.items():
@@ -95,9 +115,13 @@ def get_gen_params(parfile, models_dict, tagPrefix=""):
     return models_dict
 
 
-def get_solver_params(jobsfile, parfile, system, tagPrefix=""):
+def get_solver_params(jobsfile, parfile, system):
     jobs = minidom.parse(jobsfile)
     par = minidom.parse(parfile)
+
+    # Get namespace
+    tagPrefix = get_tag_prefix(par)
+
     solver = jobs.getElementsByTagName("solver")[0]
     parsets = par.getElementsByTagName(tagPrefix + "set")
     system["solver"] = [
@@ -152,9 +176,6 @@ def get_refs(generators, parsets, iidmfile):
                     if x.attributes["id"].value == gen.attributes["bus"].value
                 ][0]
                 r.setAttribute("value", str(float(bus.attributes["angle"].value) * (np.pi / 180)))
-    # logs = file.createElement(tagPrefix+'logs')
-    # app1 = file.createElement(tagPrefix+'appender')
-    # app1.setAttribute('tag', '')
 
 
 def gen_jobs(system, output):
@@ -284,23 +305,23 @@ def gen_par(system, output):
 
 def gen_par_IBus(system, output, parlist):
 
-    file = minidom.parse(output)
-    parametersSet = file.getElementsByTagName("parametersSet")[0]
+    xml_file = minidom.parse(output)
+    parametersSet = xml_file.getElementsByTagName("parametersSet")[0]
 
-    set_list = file.getElementsByTagName("set")
+    set_list = xml_file.getElementsByTagName("set")
     for modelpars in parlist:
         for set_elem in set_list:
             if set_elem.getAttribute("id") == modelpars.attributes["id"].value:
                 set_elem.setAttribute("dydId", modelpars.attributes["dydId"].value)
                 break
 
-        IBus_par = file.createElement("set")
+        IBus_par = xml_file.createElement("set")
         IBus_par.setAttribute("id", "IBus_" + modelpars.attributes["dydId"].value)
 
-        par1 = file.createElement("par")
-        par2 = file.createElement("par")
-        par3 = file.createElement("par")
-        par4 = file.createElement("par")
+        par1 = xml_file.createElement("par")
+        par2 = xml_file.createElement("par")
+        par3 = xml_file.createElement("par")
+        par4 = xml_file.createElement("par")
 
         par1.setAttribute("name", "infiniteBus_UPuTableName")
         par2.setAttribute("name", "infiniteBus_UPhaseTableName")
@@ -335,7 +356,7 @@ def gen_par_IBus(system, output, parlist):
 
     # Write output without whitespaces
     with open(output, "w") as out:
-        xml_str = file.toprettyxml()
+        xml_str = xml_file.toprettyxml()
         xml_str = os.linesep.join(
             [
                 s
@@ -348,8 +369,8 @@ def gen_par_IBus(system, output, parlist):
 
 
 def solve_references(par_file, dumpinit_folder):
-    file = minidom.parse(par_file)
-    reference_list = file.getElementsByTagName("reference")
+    xml_file = minidom.parse(par_file)
+    reference_list = xml_file.getElementsByTagName("reference")
 
     for reference_elem in reference_list:
         if reference_elem.parentNode.hasAttribute("dydId"):
@@ -366,7 +387,7 @@ def solve_references(par_file, dumpinit_folder):
                         break
             if value_ref == -9999999999:
                 print(reference_elem.parentNode.getAttribute("dydId"), atr_ref)
-            par_ref = file.createElement("par")
+            par_ref = xml_file.createElement("par")
             par_ref.setAttribute("type", reference_elem.getAttribute("type"))
             par_ref.setAttribute("name", atr_ref)
             par_ref.setAttribute("value", str(value_ref))
@@ -376,7 +397,7 @@ def solve_references(par_file, dumpinit_folder):
 
     # Write output without whitespaces
     with open(par_file, "w") as out:
-        xml_str = file.toprettyxml()
+        xml_str = xml_file.toprettyxml()
         xml_str = os.linesep.join(
             [
                 s
@@ -388,7 +409,7 @@ def solve_references(par_file, dumpinit_folder):
         out.close()
 
 
-def gen_replay_files(root_dir, model, terminals_csv, output_dir, tagPrefix):
+def gen_replay_files(root_dir, model, terminals_csv, output_dir):
     os.makedirs(output_dir, exist_ok=True)
 
     # Generate the replay table file
@@ -405,7 +426,7 @@ def gen_replay_files(root_dir, model, terminals_csv, output_dir, tagPrefix):
     system = get_jobs_config(in_jobs)
 
     # Get list of all dyd gens
-    gen_dict = get_generators(in_dyd, tagPrefix)
+    gen_dict = get_generators(in_dyd)
 
     # TODO: At the moment the original parameters are used, in
     # the future, to save memory, only the generator parameters
@@ -428,7 +449,8 @@ def gen_replay_files(root_dir, model, terminals_csv, output_dir, tagPrefix):
 
     # Generate the replay simulation files with all the data obtained above
     gen_jobs(system, out_jobs)
-    gen_dyd(system, out_dyd, tagPrefix)
+
+    gen_dyd(system, out_dyd, get_tag_prefix(minidom.parse(in_dyd)))
     os.system("cp '{}/{}.crv' '{}/{}.crv'".format(root_dir, model, output_dir, model))
     os.system("cp '{}/{}.par' '{}/{}.par'".format(root_dir, model, output_dir, model))
     # Add IBus to pars
