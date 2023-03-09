@@ -3,20 +3,37 @@ import numpy as np
 import matplotlib.pyplot as plt
 import logging
 from xml.dom import minidom
+from xml import sax
 
 
-def add_logs(jobsfilename, tagPrefix=""):
-    file = minidom.parse(jobsfilename)
-    logs = file.getElementsByTagName(tagPrefix + "logs")
+def get_tag_prefix(xml_file):
+    # Get namespace
+    tagPrefix = minidom._nssplit(xml_file.getElementsByTagName("*")[0].tagName)[0]
+
+    if tagPrefix is None:
+        tagPrefix = ""
+    else:
+        tagPrefix += ":"
+
+    return tagPrefix
+
+
+def add_logs(jobsfilename):
+    xml_file = minidom.parse(jobsfilename, sax.make_parser())
+
+    # Get namespace
+    tagPrefix = get_tag_prefix(xml_file)
+
+    logs = xml_file.getElementsByTagName(tagPrefix + "logs")
     if logs:
         logs[0].parentNode.removeChild(logs[0])
-    outputs = file.getElementsByTagName(tagPrefix + "outputs")[0]
-    logs = file.createElement(tagPrefix + "logs")
-    app1 = file.createElement(tagPrefix + "appender")
+    outputs = xml_file.getElementsByTagName(tagPrefix + "outputs")[0]
+    logs = xml_file.createElement(tagPrefix + "logs")
+    app1 = xml_file.createElement(tagPrefix + "appender")
     app1.setAttribute("tag", "")
     app1.setAttribute("file", "dynawo.log")
     app1.setAttribute("lvlFilter", "DEBUG")
-    app2 = file.createElement(tagPrefix + "appender")
+    app2 = xml_file.createElement(tagPrefix + "appender")
     app2.setAttribute("tag", "VARIABLES")
     app2.setAttribute("file", "dynawoVariables.log")
     app2.setAttribute("lvlFilter", "DEBUG")
@@ -24,8 +41,8 @@ def add_logs(jobsfilename, tagPrefix=""):
     logs.appendChild(app2)
     outputs.appendChild(logs)
     with open(jobsfilename, "w") as out:
-        # out.write(file.toprettyxml())
-        file.writexml(out)
+        # out.write(xml_file.toprettyxml())
+        xml_file.writexml(out)
         out.close()
 
 
@@ -95,59 +112,71 @@ def plot_results(df, dfsize, name, target="states", path="results", ranks=[10]):
     return error, compression
 
 
-def add_ini_par_file(jobsfile, tag_prefix=""):
-    file = minidom.parse(jobsfile)
-    dumpInitValues = file.getElementsByTagName(tag_prefix + "dumpInitValues")
+def add_ini_par_file(jobsfile):
+    xml_file = minidom.parse(jobsfile)
+
+    # Get namespace
+    tagPrefix = get_tag_prefix(xml_file)
+
+    dumpInitValues = xml_file.getElementsByTagName(tagPrefix + "dumpInitValues")
     if dumpInitValues:
         dumpInitValues = dumpInitValues[0]
         dumpInitValues.setAttribute("local", "false")
         dumpInitValues.setAttribute("global", "true")
     else:
-        outputs = file.getElementsByTagName(tag_prefix + "outputs")[0]
-        dumpInitValues = file.createElement(tag_prefix + "dumpInitValues")
+        outputs = xml_file.getElementsByTagName(tagPrefix + "outputs")[0]
+        dumpInitValues = xml_file.createElement(tagPrefix + "dumpInitValues")
         dumpInitValues.setAttribute("local", "false")
         dumpInitValues.setAttribute("global", "true")
         outputs.appendChild(dumpInitValues)
 
     with open(jobsfile, "w") as out:
-        # out.write(file.toprettyxml())
-        file.writexml(out)
+        # out.write(xml_file.toprettyxml())
+        xml_file.writexml(out)
         out.close()
 
 
 def add_precision_jobs_file(jobsfile):
-    file = minidom.parse(jobsfile)
-    simulation = file.getElementsByTagName("simulation")[0]
+    xml_file = minidom.parse(jobsfile)
+    simulation = xml_file.getElementsByTagName("simulation")[0]
     system = {}
 
     if "precision" not in simulation.attributes:
         simulation.setAttribute("precision", "1e-8")
 
     with open(jobsfile, "w") as out:
-        # out.write(file.toprettyxml())
-        file.writexml(out)
+        # out.write(xml_file.toprettyxml())
+        xml_file.writexml(out)
         out.close()
 
     return system
 
 
-def change_curve_file(jobsfile, curvefilename, tag_prefix=""):
-    file = minidom.parse(jobsfile)
-    curves = file.getElementsByTagName(tag_prefix + "curves")[0]
+def change_curve_file(jobsfile, curvefilename):
+    xml_file = minidom.parse(jobsfile)
+
+    # Get namespace
+    tagPrefix = get_tag_prefix(xml_file)
+
+    curves = xml_file.getElementsByTagName(tagPrefix + "curves")[0]
     curves.setAttribute("inputFile", curvefilename)
     with open(jobsfile, "w") as out:
-        # out.write(file.toprettyxml())
-        file.writexml(out)
+        # out.write(xml_file.toprettyxml())
+        xml_file.writexml(out)
         out.close()
 
 
-def change_jobs_file(jobsfile, dydfilename, tag_prefix=""):
-    file = minidom.parse(jobsfile)
-    models = file.getElementsByTagName(tag_prefix + "dynModels")[0]
+def change_jobs_file(jobsfile, dydfilename):
+    xml_file = minidom.parse(jobsfile)
+
+    # Get namespace
+    tagPrefix = get_tag_prefix(xml_file)
+
+    models = xml_file.getElementsByTagName(tagPrefix + "dynModels")[0]
     models.setAttribute("dydFile", dydfilename)
     with open(jobsfile, "w") as out:
-        # out.write(file.toprettyxml())
-        file.writexml(out)
+        # out.write(xml_file.toprettyxml())
+        xml_file.writexml(out)
         out.close()
 
 
@@ -156,13 +185,15 @@ def gen_all_curves_fast(
     case_dir,
     output_dir,
     remove_previous,
-    tagPrefix="",
 ):
 
     # Get generators of dyd file and create the new curves file
 
     dyd_path = case_dir + "/{}.dyd".format(case_name)
     dydfile = minidom.parse(dyd_path)
+
+    # Get namespace
+    tagPrefix = get_tag_prefix(dydfile)
 
     blackBoxModel = dydfile.getElementsByTagName(tagPrefix + "blackBoxModel")
     if len(blackBoxModel) == 0:

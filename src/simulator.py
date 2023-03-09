@@ -5,6 +5,7 @@ import argparse
 import subprocess
 import pandas as pd
 import matplotlib.pyplot as plt
+from xml.dom import minidom
 import allcurves as allcurves_code
 import replay as replay_code
 
@@ -15,7 +16,6 @@ def parser_args():
     parser.add_argument("root_dir")
     parser.add_argument("output_dir")
     parser.add_argument("dynawo_path")
-    parser.add_argument("-t", "--tag_prefix", default="")
     parser.add_argument("-r", "--run_original", action="store_true")
     parser.add_argument("-g", "--gen_crv", action="store_true")
     parser.add_argument("-c", "--gen_csv", action="store_true")
@@ -66,23 +66,21 @@ def replay(
     terminals_csv,
     output_dir,
     dynawo_path,
-    tagPrefix,
 ):
     # Generate the replay files
-    replay_code.gen_replay_files(base_case_dir, case_name, terminals_csv, output_dir, tagPrefix)
+    replay_code.gen_replay_files(base_case_dir, case_name, terminals_csv, output_dir)
 
-    replay_single_generators(case_name, output_dir, jobs_file, dynawo_path, tagPrefix)
+    replay_single_generators(case_name, output_dir, jobs_file, dynawo_path)
 
 
-def replay_single_generators(case_name, output_dir, jobs_file, dynawo_path, tagPrefix):
+def replay_single_generators(case_name, output_dir, jobs_file, dynawo_path):
     dydfile = output_dir + case_name + ".dyd"
     crvfile_name = case_name + ".crv"
     crvfile = output_dir + crvfile_name
-    # file = minidom.parse(dydfile)
 
     # TODO: Change this in order to replay only the needed gens
     # Get list of all generators of the dyd case file
-    generators = replay_code.get_generators(dydfile, tagPrefix)
+    generators = replay_code.get_generators(dydfile)
     gen_ids = []
 
     for gen in generators:
@@ -102,7 +100,9 @@ def replay_single_generators(case_name, output_dir, jobs_file, dynawo_path, tagP
         gen_jobs_file_path = output_dir_gen + jobs_file
 
         # Create the single gen file
-        replay_code.gen_dyd(system, gen_dydfile, tagPrefix)
+        replay_code.gen_dyd(
+            system, gen_dydfile, allcurves_code.get_tag_prefix(minidom.parse(dydfile))
+        )
 
         allcurves_code.change_jobs_file(gen_jobs_file_path, gen_dydfile)
         run_simulation(False, jobs_file, crvfile, output_dir_gen, dynawo_path, True)
@@ -276,7 +276,6 @@ def runner(
     run_original,
     gen_crv,
     gen_csv,
-    tagPrefix,
 ):
     # Get the case name
     case_name = subprocess.getoutput("basename " + original_jobs_file_path).split(".")[0]
@@ -315,14 +314,20 @@ def runner(
             print("\nGenerating curves")
             os.makedirs(simulation_output_dir + "terminals/", exist_ok=True)
             allcurves_code.gen_all_curves_fast(
-                case_name, base_case_dir, simulation_output_dir + "terminals/", False, tagPrefix
+                case_name,
+                base_case_dir,
+                simulation_output_dir + "terminals/",
+                False,
             )
             logging.info("generated .crv for all terminals")
         else:
             print("\nGenerating curves")
             os.makedirs(simulation_output_dir + "terminals/", exist_ok=True)
             allcurves_code.gen_all_curves_fast(
-                case_name, base_case_dir, simulation_output_dir + "terminals/", True, tagPrefix
+                case_name,
+                base_case_dir,
+                simulation_output_dir + "terminals/",
+                True,
             )
             logging.info("generated .crv for all terminals")
 
@@ -357,7 +362,6 @@ def runner(
         terminals_csv,
         simulation_output_dir + "replay/",
         dynawo_path,
-        tagPrefix,
     )
     logging.info("Finished replay")
 
@@ -375,5 +379,4 @@ if __name__ == "__main__":
         args.run_original,
         args.gen_crv,
         args.gen_csv,
-        args.tag_prefix,
     )
