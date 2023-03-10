@@ -1,0 +1,18 @@
+Metadata-Version: 2.1
+Name: dynawo-replay
+Version: 0.0.1
+Summary: A tool to replay curves
+Author-email: Guiu Oms <omsg@aia.es>
+License: 
+        This is proprietary software, owned by RTE. This software is not to be licensed to third parties.
+        
+        
+Project-URL: Code repo, https://github.com/grupoaia/DynawoReplay
+Project-URL: Bug tracker, https://github.com/grupoaia/DynawoReplay
+Keywords: Replay Curves,Dynawo
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: Other/Proprietary License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE

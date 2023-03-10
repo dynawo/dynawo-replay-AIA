@@ -1,7 +1,6 @@
 import os
 import datetime
 import subprocess
-import logging
 import jinja2
 import pandas as pd
 import numpy as np
@@ -24,7 +23,6 @@ def compress_reconstruct(
     name = subprocess.getoutput("basename " + jobs_file_path).split(".")[0]
     dir = subprocess.getoutput("dirname " + jobs_file_path)
     start = datetime.datetime.now()
-    logging.info("\nExecution of " + jobs_file_path + " started at " + str(start))
     # begin pipeline execution
     print("\n***\n" + jobs_file_path + "\n***\n")
 
@@ -43,36 +41,19 @@ def compress_reconstruct(
                 dir, dir, target
             )
         )
-        logging.info("finished Dynawo simulation")
 
     csvfile = dir + "/outputs/curves/{}_curves.csv".format(target)
     if not os.path.isfile(csvfile):
-        logging.error(csvfile + " does not exist")
         return -1
     df = pd.read_csv(csvfile, sep=";")
     dfsize = os.path.getsize(csvfile)
-    logging.info("read CSV")
 
     print("{} loaded".format(jobs_file_path))
     compress_and_save(df, name, target, ranks=ranks)
-    logging.info("compressed matrix")
     reconstruct_from_disk(name, target, ranks=ranks)
-    logging.info("reconstructed matrix")
     error[name], compression[name] = plot_results(df, dfsize, name, target, ranks=ranks)
-    logging.info("plot results")
-    # log finish
     end = datetime.datetime.now()
     elapsed = end - start
-    logging.info(
-        "Execution of "
-        + jobs_file_path
-        + " finished at "
-        + str(end)
-        + ". Time elapsed: "
-        + str(elapsed)
-        + "\n"
-    )
-    logging.info("\n")
     return error, compression
 
 
@@ -219,7 +200,6 @@ def gen_all_curves_from_original(
 
     # Generate terminals crv fileyyy
     os.system("mv allcurves.crv {}/{}_{}.crv".format(output_dir, case_name, target))
-    logging.info("generated allcurves_{}.crv".format(target))
 
 
 def gen_crv(system, output):

@@ -1,13 +1,12 @@
 import os
-import logging
 import datetime
 import argparse
 import subprocess
 import pandas as pd
 import matplotlib.pyplot as plt
 from xml.dom import minidom
-import allcurves as allcurves_code
-import replay as replay_code
+from dynawo_replay import allcurves as allcurves_code
+from dynawo_replay import replay as replay_code
 
 
 def parser_args():
@@ -16,9 +15,6 @@ def parser_args():
     parser.add_argument("root_dir")
     parser.add_argument("output_dir")
     parser.add_argument("dynawo_path")
-    parser.add_argument("-r", "--run_original", action="store_true")
-    parser.add_argument("-g", "--gen_crv", action="store_true")
-    parser.add_argument("-c", "--gen_csv", action="store_true")
 
     args = parser.parse_args()
     return args
@@ -55,8 +51,6 @@ def run_simulation(
     print("\nELAPSED TIME")
     print(end_time - start_time)
     print("\n\n\n")
-
-    logging.info("simulation end")
 
 
 def replay(
@@ -106,7 +100,6 @@ def replay_single_generators(case_name, output_dir, jobs_file, dynawo_path):
 
         allcurves_code.change_jobs_file(gen_jobs_file_path, gen_dydfile)
         run_simulation(False, jobs_file, crvfile, output_dir_gen, dynawo_path, True)
-        logging.info("Replay generator " + gen_id)
 
     with open(output_dir + "generators.txt", "w") as f:
         f.write("\n".join(gen_ids))
@@ -294,17 +287,8 @@ def runner(
 
     os.makedirs(simulation_output_dir, exist_ok=True)
 
-    # Create and config the simulation log file
-    logging.basicConfig(
-        filename=simulation_output_dir + "/simulation.log",
-        format="%(asctime)s %(levelname)-8s %(message)s",
-        level=logging.DEBUG,
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-
     # Begin pipeline execution
     start = datetime.datetime.now()
-    logging.info("\nExecution of " + jobs_file + " started at " + str(start))
 
     print("\n***\n" + original_jobs_file_path + "\n***\n")
 
@@ -319,7 +303,6 @@ def runner(
                 simulation_output_dir + "terminals/",
                 False,
             )
-            logging.info("generated .crv for all terminals")
         else:
             print("\nGenerating curves")
             os.makedirs(simulation_output_dir + "terminals/", exist_ok=True)
@@ -329,7 +312,6 @@ def runner(
                 simulation_output_dir + "terminals/",
                 True,
             )
-            logging.info("generated .crv for all terminals")
 
     # Generate results csv terminal curves file
     if gen_csv:
@@ -342,7 +324,6 @@ def runner(
             dynawo_path,
             True,
         )
-        logging.info("Generated CSV with terminal curves")
 
     # Define csv paths
     terminals_csv = simulation_output_dir + "/terminals/outputs/curves/curves.csv"
@@ -352,7 +333,6 @@ def runner(
         original_csv = None
 
     print("Plotting results")
-    logging.info("Plotting results")
 
     # Reconstruction of the curves
     replay(
@@ -363,20 +343,48 @@ def runner(
         simulation_output_dir + "replay/",
         dynawo_path,
     )
-    logging.info("Finished replay")
 
     if run_original:
         original_vs_replay_generators(original_csv, simulation_output_dir + "replay")
 
 
-if __name__ == "__main__":
+def pipeline_validation():
+
     args = parser_args()
 
     runner(
         os.path.abspath(args.root_dir),
         os.path.abspath(args.output_dir) + "/",
         os.path.abspath(args.dynawo_path),
-        args.run_original,
-        args.gen_crv,
-        args.gen_csv,
+        True,
+        True,
+        True,
+    )
+
+
+def case_preparation():
+
+    args = parser_args()
+
+    runner(
+        os.path.abspath(args.root_dir),
+        os.path.abspath(args.output_dir) + "/",
+        os.path.abspath(args.dynawo_path),
+        True,
+        True,
+        True,
+    )
+
+
+def curves_creation():
+
+    args = parser_args()
+
+    runner(
+        os.path.abspath(args.root_dir),
+        os.path.abspath(args.output_dir) + "/",
+        os.path.abspath(args.dynawo_path),
+        True,
+        True,
+        True,
     )

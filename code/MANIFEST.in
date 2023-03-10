@@ -1,0 +1,2 @@
+include src/dynawo_replay/extractvars.sh
+include src/dynawo_replay/genallcrv.sh

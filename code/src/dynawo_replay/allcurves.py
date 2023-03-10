@@ -1,7 +1,6 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-import logging
 from xml.dom import minidom
 from xml import sax
 
@@ -251,5 +250,3 @@ def gen_all_curves_fast(
         xml_str = os.linesep.join([s for s in xml_str.splitlines() if s != "	" and s])
         out.write(xml_str)
         out.close()
-
-    logging.info("generated gen_all_curves_fast {}.crv".format(case_name))
