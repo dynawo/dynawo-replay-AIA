@@ -5,13 +5,6 @@ import numpy as np
 from xml.dom import minidom
 
 
-# logging.basicConfig(
-#     filename='replay.log',
-#     format='%(asctime)s %(levelname)-8s %(message)s',
-#     level=logging.INFO,
-#     datefmt='%Y-%m-%d %H:%M:%S')
-
-
 def get_tag_prefix(xml_file):
     # Get namespace
     tagPrefix = minidom._nssplit(xml_file.getElementsByTagName("*")[0].tagName)[0]
