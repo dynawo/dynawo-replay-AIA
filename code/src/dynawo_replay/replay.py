@@ -34,6 +34,7 @@ def gen_table(csvfile, output_dir):
         f.write("#1\n")
         for omega in omega_names:
             Omg = df[omega]
+            omega = omega.replace(" ", "-")  # need to remove spaces in column names in table
             # f.write('#1\n double OmegaRefPu({},2)\n 0 1\n {} 1\n'.format(time.iloc[-1]))
             f.write("\ndouble {}({},2)\n".format(omega, len(Omg)))
             np.savetxt(f, np.array([time, Omg]).T, fmt="%.10f")
@@ -235,6 +236,11 @@ simulation tools for power systems.
         + tagPrefix
         + """connect id1="{{model.attributes['id'].value}}" var1="generator_terminal" id2="IBus_{{model.attributes['id'].value}}" var2="infiniteBus_terminal"/>
     <"""
+        # TODO: This part is added now, check if it's correct
+        # + tagPrefix
+        # + """connect id1="{{model.attributes['id'].value}}" var1="transformer_terminal1" id2="IBus_{{model.attributes['id'].value}}" var2="infiniteBus_terminal"/>
+        # <"""
+        # TODO: to here
         + tagPrefix
         + """connect id1="{{model.attributes['id'].value}}" var1="generator_omegaRefPu_value" id2="IBus_{{model.attributes['id'].value}}" var2="infiniteBus_omegaRefPu"/>
     {% endfor %}
@@ -443,14 +449,13 @@ def gen_replay_files(root_dir, model, terminals_csv, output_dir):
     # Generate the replay simulation files with all the data obtained above
     gen_jobs(system, out_jobs)
 
-    gen_dyd(system, out_dyd, get_tag_prefix(minidom.parse(in_dyd)))
+    # gen_dyd(system, out_dyd, get_tag_prefix(minidom.parse(in_dyd)))
+    gen_dyd(system, out_dyd, "dyn:")
     os.system("cp '{}/{}.crv' '{}/{}.crv'".format(root_dir, model, output_dir, model))
     os.system("cp '{}/{}.par' '{}/{}.par'".format(root_dir, model, output_dir, model))
     # Add IBus to pars
     # gen_par(system, out_par)
     gen_par_IBus(system, out_par, parlist)
     solve_references(out_par, os.path.dirname(terminals_csv) + "/../initValues/globalInit/")
-
-    # TODO: Study what curves should be replayed and modify this part
 
     return system

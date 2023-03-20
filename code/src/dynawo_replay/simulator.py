@@ -12,9 +12,22 @@ from dynawo_replay import replay as replay_code
 def parser_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("root_dir")
+    parser.add_argument("jobs_path")
     parser.add_argument("output_dir")
     parser.add_argument("dynawo_path")
+
+    args = parser.parse_args()
+    return args
+
+
+def parser_args_replay():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("jobs_path")
+    parser.add_argument("output_dir")
+    parser.add_argument("dynawo_path")
+    parser.add_argument("curves_file")
+    parser.add_argument("replay_generators", default="ALL", nargs="?")
 
     args = parser.parse_args()
     return args
@@ -57,33 +70,42 @@ def replay(
     case_name,
     base_case_dir,
     jobs_file,
+    curves_file,
     terminals_csv,
     output_dir,
     dynawo_path,
+    replay_generators,
 ):
     # Generate the replay files
     replay_code.gen_replay_files(base_case_dir, case_name, terminals_csv, output_dir)
 
-    replay_single_generators(case_name, output_dir, jobs_file, dynawo_path)
+    replay_single_generators(
+        case_name, output_dir, jobs_file, dynawo_path, curves_file, replay_generators
+    )
 
 
-def replay_single_generators(case_name, output_dir, jobs_file, dynawo_path):
+def replay_single_generators(
+    case_name, output_dir, jobs_file, dynawo_path, curves_file, replay_generators
+):
     dydfile = output_dir + case_name + ".dyd"
-    crvfile_name = case_name + ".crv"
-    crvfile = output_dir + crvfile_name
-
-    # TODO: Change this in order to replay only the needed gens
-    # Get list of all generators of the dyd case file
-    generators = replay_code.get_generators(dydfile)
+    crvfile = curves_file
     gen_ids = []
 
-    for gen in generators:
+    generators = replay_code.get_generators(dydfile)
+
+    if replay_generators[0] == "ALL":
+        # Get list of all generators of the dyd case file
+        replay_generators_list = generators.keys()
+    else:
+        # Get list of all generators porvided by the user
+        replay_generators_list = replay_generators
+
+    for gen in replay_generators_list:
         system = {}
         system["generators"] = {gen: generators[gen]}
         system["name"] = case_name
         gen_id = generators[gen]["dyd"].attributes["id"].value
         gen_ids.append(gen_id)
-
         output_dir_gen = (output_dir + gen_id + "/").replace(" ", "_")
         os.makedirs(output_dir_gen, exist_ok=True)
         os.system("cp '{}/{}' '{}/'".format(output_dir, jobs_file, output_dir_gen))
@@ -175,19 +197,30 @@ def get_metrics(values_1, times_1, values_2, times_2, ss_time, ss_tol):
     # Calc Diff peak to peak
     PP_1 = abs(max(values_1) - min(values_1))
     PP_2 = abs(max(values_2) - min(values_2))
-    dPP = abs(PP_1 - PP_2)
+    dPP_abs = abs(PP_1 - PP_2)
+
+    if values_1[-1] == 0:
+        dPP_rel = -999999999
+    else:
+        dPP_rel = dPP_abs / values_1[-1]
 
     # Calc Diff steady state
     if stable1 and stable2:
         SS_1 = values_1[-1]
         SS_2 = values_2[-1]
-        dSS = abs(SS_1 - SS_2)
+        dSS_abs = abs(SS_1 - SS_2)
+
+        if SS_1 == 0:
+            dSS_rel = -999999999
+        else:
+            dSS_rel = dSS_abs / SS_1
     else:
         SS_1 = -999999999
         SS_2 = -999999999
-        dSS = -999999999
+        dSS_abs = -999999999
+        dSS_rel = -999999999
 
-    return TT, TSS_1, TSS_2, dPP, PP_1, PP_2, dSS, SS_1, SS_2
+    return TT, TSS_1, TSS_2, dPP_abs, dPP_rel, PP_1, PP_2, dSS_abs, dSS_rel, SS_1, SS_2
 
 
 def original_vs_replay(original_csv, replay_csv, outputdir, title="Simulation"):
@@ -214,15 +247,27 @@ def original_vs_replay(original_csv, replay_csv, outputdir, title="Simulation"):
             "TT": [],
             "PP_Org": [],
             "PP_Rep": [],
-            "dPP": [],
+            "dPP_abs": [],
+            "dPP_rel": [],
             "SS_Org": [],
             "SS_Rep": [],
-            "dSS": [],
+            "dSS_abs": [],
+            "dSS_rel": [],
         }
         for c in df2.columns:
-            TT, TSS_1, TSS_2, dPP, PP_1, PP_2, dSS, SS_1, SS_2 = get_metrics(
-                list(df[c]), list(t), list(df2[c]), list(t2), 5, 0.002
-            )
+            (
+                TT,
+                TSS_1,
+                TSS_2,
+                dPP_abs,
+                dPP_rel,
+                PP_1,
+                PP_2,
+                dSS_abs,
+                dSS_rel,
+                SS_1,
+                SS_2,
+            ) = get_metrics(list(df[c]), list(t), list(df2[c]), list(t2), 5, 0.002)
 
             plt.plot(t, df[c], label="original")
             plt.plot(t2, df2[c], label="replay", linestyle="--")
@@ -237,10 +282,12 @@ def original_vs_replay(original_csv, replay_csv, outputdir, title="Simulation"):
             dict_metrics["TT"].append(TT)
             dict_metrics["PP_Org"].append(PP_1)
             dict_metrics["PP_Rep"].append(PP_2)
-            dict_metrics["dPP"].append(dPP)
+            dict_metrics["dPP_abs"].append(dPP_abs)
+            dict_metrics["dPP_rel"].append(dPP_rel)
             dict_metrics["SS_Org"].append(SS_1)
             dict_metrics["SS_Rep"].append(SS_2)
-            dict_metrics["dSS"].append(dSS)
+            dict_metrics["dSS_abs"].append(dSS_abs)
+            dict_metrics["dSS_rel"].append(dSS_rel)
 
         df_metrics = pd.DataFrame.from_dict(dict_metrics)
 
@@ -266,9 +313,12 @@ def runner(
     original_jobs_file_path,
     output_dir,
     dynawo_path,
+    curves_file,
+    replay_generators,
     run_original,
     gen_crv,
     gen_csv,
+    replay_gen,
 ):
     # Get the case name
     case_name = subprocess.getoutput("basename " + original_jobs_file_path).split(".")[0]
@@ -286,9 +336,6 @@ def runner(
     )
 
     os.makedirs(simulation_output_dir, exist_ok=True)
-
-    # Begin pipeline execution
-    start = datetime.datetime.now()
 
     print("\n***\n" + original_jobs_file_path + "\n***\n")
 
@@ -332,20 +379,22 @@ def runner(
     else:
         original_csv = None
 
-    print("Plotting results")
-
     # Reconstruction of the curves
-    replay(
-        case_name,
-        base_case_dir,
-        jobs_file,
-        terminals_csv,
-        simulation_output_dir + "replay/",
-        dynawo_path,
-    )
+    if replay_gen:
+        replay(
+            case_name,
+            base_case_dir,
+            jobs_file,
+            curves_file,
+            terminals_csv,
+            simulation_output_dir + "replay/",
+            dynawo_path,
+            replay_generators,
+        )
 
-    if run_original:
-        original_vs_replay_generators(original_csv, simulation_output_dir + "replay")
+        if run_original:
+            print("Plotting results")
+            original_vs_replay_generators(original_csv, simulation_output_dir + "replay")
 
 
 def pipeline_validation():
@@ -353,9 +402,12 @@ def pipeline_validation():
     args = parser_args()
 
     runner(
-        os.path.abspath(args.root_dir),
+        os.path.abspath(args.jobs_path),
         os.path.abspath(args.output_dir) + "/",
         os.path.abspath(args.dynawo_path),
+        None,
+        ["ALL"],
+        True,
         True,
         True,
         True,
@@ -367,24 +419,30 @@ def case_preparation():
     args = parser_args()
 
     runner(
-        os.path.abspath(args.root_dir),
+        os.path.abspath(args.jobs_path),
         os.path.abspath(args.output_dir) + "/",
         os.path.abspath(args.dynawo_path),
+        None,
+        [],
         True,
         True,
         True,
+        False,
     )
 
 
 def curves_creation():
 
-    args = parser_args()
+    args = parser_args_replay()
 
     runner(
-        os.path.abspath(args.root_dir),
+        os.path.abspath(args.jobs_path),
         os.path.abspath(args.output_dir) + "/",
         os.path.abspath(args.dynawo_path),
-        True,
-        True,
+        os.path.abspath(args.curves_file),
+        args.replay_generators.split(","),
+        False,
+        False,
+        False,
         True,
     )
