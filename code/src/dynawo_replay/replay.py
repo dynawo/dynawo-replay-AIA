@@ -102,7 +102,7 @@ def get_gen_params(parfile, models_dict):
             print(id, "not found")
             print(value["dyd"].attributes["id"].value)
             continue
-        params = params[0]
+        params = params[0].cloneNode(True)
         params.setAttribute("dydId", value["dyd"].attributes["id"].value)  # set parId to id
         # get_refs(params, models_dict, iidmfile)
         models_dict[key]["par"] = params
@@ -254,7 +254,7 @@ simulation tools for power systems.
         f.write(template.render(system=system, models=models))
 
 
-def gen_par(system, output):
+def gen_par_ant(system, output):
     parlist = [x["par"] for x in system["generators"].values()]
     template_src = """<?xml version="1.0" encoding="UTF-8"?>
 <!--
@@ -271,7 +271,7 @@ def gen_par(system, output):
 -->
 <parametersSet xmlns="http://www.rte-france.com/dynawo">
   {% for modelpars in parlist -%}
-  <set id="{{modelpars.attributes['id'].value}}" dydid="{{modelpars.attributes['dydId'].value}}">
+  <set id="{{modelpars.attributes['id'].value}}" dydId="{{modelpars.attributes['dydId'].value}}">
     {% for param in modelpars.getElementsByTagName('par') -%}
     <par name="{{param.attributes['name'].value}}" type="{{param.attributes['type'].value}}" value="{{param.attributes['value'].value}}"/>  
     {% endfor -%}
@@ -302,6 +302,49 @@ def gen_par(system, output):
         )
 
 
+def gen_par(system, output):
+    parlist = [x["par"] for x in system["generators"].values()]
+
+    template_src = """<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Copyright (c) 2022, RTE (http://www.rte-france.com)
+    See AUTHORS.txt
+    All rights reserved.
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, you can obtain one at http://mozilla.org/MPL/2.0/.
+    SPDX-License-Identifier: MPL-2.0
+
+    This file is part of Dynawo, an hybrid C++/Modelica open source suite of
+    simulation tools for power systems.
+-->
+<parametersSet xmlns="http://www.rte-france.com/dynawo">
+  {% for modelpars in parlist -%}
+  <set id="{{modelpars.attributes['id'].value}}" dydId="{{modelpars.attributes['dydId'].value}}">
+    {% for param in modelpars.getElementsByTagName('par') -%}
+    <par name="{{param.attributes['name'].value}}" type="{{param.attributes['type'].value}}" value="{{param.attributes['value'].value}}"/>  
+    {% endfor -%}
+    {% for param in modelpars.getElementsByTagName('reference') -%}
+    <reference name="{{param.attributes['name'].value}}" origData="{{param.attributes['origData'].value}}" origName="{{param.attributes['origName'].value}}" type="{{param.attributes['type'].value}}"/>
+    {% endfor -%}
+  </set>
+  {% endfor -%}
+
+   {{ system['solver'].toxml() }}
+
+</parametersSet>
+    """
+    template = jinja2.Template(template_src)
+    with open(output, "w") as f:
+        f.write(
+            template.render(
+                system=system,
+                parlist=parlist,
+                infinite_bus_table=system["infinite_bus_table"],
+            )
+        )
+
+
 def gen_par_IBus(system, output, parlist):
 
     xml_file = minidom.parse(output)
@@ -310,7 +353,9 @@ def gen_par_IBus(system, output, parlist):
     set_list = xml_file.getElementsByTagName("set")
     for modelpars in parlist:
         for set_elem in set_list:
-            if set_elem.getAttribute("id") == modelpars.attributes["id"].value:
+            if set_elem.getAttribute("id") == modelpars.attributes[
+                "id"
+            ].value and not set_elem.hasAttribute("dydId"):
                 set_elem.setAttribute("dydId", modelpars.attributes["dydId"].value)
                 break
 
@@ -432,7 +477,7 @@ def gen_replay_files(root_dir, model, terminals_csv, output_dir):
     # with these functions could be selected
 
     # Add gen initilization params
-    get_gen_params(in_par, gen_dict)
+    gen_dict = get_gen_params(in_par, gen_dict)
 
     # Get initialization params that are defined in the iidm
     parlist = list(dict.fromkeys([x["par"] for x in gen_dict.values()]))
