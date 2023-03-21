@@ -1,15 +1,20 @@
-import os, shutil, jinja2
+import os
+import jinja2
 import pandas as pd
 import numpy as np
 from xml.dom import minidom
-import allcurves as allcurves_code
-import logging, datetime
 
-# logging.basicConfig(
-#     filename='replay.log',
-#     format='%(asctime)s %(levelname)-8s %(message)s',
-#     level=logging.INFO,
-#     datefmt='%Y-%m-%d %H:%M:%S')
+
+def get_tag_prefix(xml_file):
+    # Get namespace
+    tagPrefix = minidom._nssplit(xml_file.getElementsByTagName("*")[0].tagName)[0]
+
+    if tagPrefix is None:
+        tagPrefix = ""
+    else:
+        tagPrefix += ":"
+
+    return tagPrefix
 
 
 def gen_table(csvfile, output_dir):
@@ -28,10 +33,11 @@ def gen_table(csvfile, output_dir):
     with open(output_dir + "table.txt", "w") as f:
         f.write("#1\n")
         for omega in omega_names:
-            O = df[omega]
+            Omg = df[omega]
+            omega = omega.replace(" ", "-")  # need to remove spaces in column names in table
             # f.write('#1\n double OmegaRefPu({},2)\n 0 1\n {} 1\n'.format(time.iloc[-1]))
-            f.write("\ndouble {}({},2)\n".format(omega, len(O)))
-            np.savetxt(f, np.array([time, O]).T, fmt="%.10f")
+            f.write("\ndouble {}({},2)\n".format(omega, len(Omg)))
+            np.savetxt(f, np.array([time, Omg]).T, fmt="%.10f")
     with open(output_dir + "table.txt", "a") as f:
         for terminal in term_names:
             cols = df[[terminal + "_V_re", terminal + "_V_im"]]
@@ -47,8 +53,8 @@ def gen_table(csvfile, output_dir):
 
 
 def get_jobs_config(jobsfile):
-    file = minidom.parse(jobsfile)
-    simulation = file.getElementsByTagName("simulation")[0]
+    xml_file = minidom.parse(jobsfile)
+    simulation = xml_file.getElementsByTagName("simulation")[0]
     system = {}
     system["simulation"] = {
         "startTime": str(0),
@@ -63,9 +69,13 @@ def get_jobs_config(jobsfile):
     return system
 
 
-def get_generators(dydfile, tagPrefix):
-    file = minidom.parse(dydfile)
-    models = file.getElementsByTagName(tagPrefix + "blackBoxModel")
+def get_generators(dydfile):
+    xml_file = minidom.parse(dydfile)
+
+    # Get namespace
+    tagPrefix = get_tag_prefix(xml_file)
+
+    models = xml_file.getElementsByTagName(tagPrefix + "blackBoxModel")
     generators = [x for x in models if "Generator" in x.attributes["lib"].value]
     gen_dict = {}
     for gen in generators:
@@ -74,11 +84,15 @@ def get_generators(dydfile, tagPrefix):
     return gen_dict
 
 
-def get_gen_params(parfile, models_dict, tagPrefix=""):
+def get_gen_params(parfile, models_dict):
     # name = subprocess.getoutput('basename '+jobsfile).split('.')[0]
     # dir = subprocess.getoutput('dirname '+jobsfile)
-    file = minidom.parse(parfile)
-    parsets = file.getElementsByTagName(tagPrefix + "set")
+    xml_file = minidom.parse(parfile)
+
+    # Get namespace
+    tagPrefix = get_tag_prefix(xml_file)
+
+    parsets = xml_file.getElementsByTagName(tagPrefix + "set")
     # iidmfile = dir+name+'.iidm'
     # add parset to each model
     for key, value in models_dict.items():
@@ -88,16 +102,20 @@ def get_gen_params(parfile, models_dict, tagPrefix=""):
             print(id, "not found")
             print(value["dyd"].attributes["id"].value)
             continue
-        params = params[0]
+        params = params[0].cloneNode(True)
         params.setAttribute("dydId", value["dyd"].attributes["id"].value)  # set parId to id
         # get_refs(params, models_dict, iidmfile)
         models_dict[key]["par"] = params
     return models_dict
 
 
-def get_solver_params(jobsfile, parfile, system, tagPrefix=""):
+def get_solver_params(jobsfile, parfile, system):
     jobs = minidom.parse(jobsfile)
     par = minidom.parse(parfile)
+
+    # Get namespace
+    tagPrefix = get_tag_prefix(par)
+
     solver = jobs.getElementsByTagName("solver")[0]
     parsets = par.getElementsByTagName(tagPrefix + "set")
     system["solver"] = [
@@ -138,7 +156,6 @@ def get_refs(generators, parsets, iidmfile):
             elif "Q0Pu" in r_name:
                 r.setAttribute("value", str(float(gen.attributes["q"].value) / 100))
             elif "U0Pu" in r_name:
-                vlevel = gen.parentNode.attributes["nominalV"]
                 r.setAttribute(
                     "value",
                     str(
@@ -153,9 +170,6 @@ def get_refs(generators, parsets, iidmfile):
                     if x.attributes["id"].value == gen.attributes["bus"].value
                 ][0]
                 r.setAttribute("value", str(float(bus.attributes["angle"].value) * (np.pi / 180)))
-    # logs = file.createElement(tagPrefix+'logs')
-    # app1 = file.createElement(tagPrefix+'appender')
-    # app1.setAttribute('tag', '')
 
 
 def gen_jobs(system, output):
@@ -222,6 +236,11 @@ simulation tools for power systems.
         + tagPrefix
         + """connect id1="{{model.attributes['id'].value}}" var1="generator_terminal" id2="IBus_{{model.attributes['id'].value}}" var2="infiniteBus_terminal"/>
     <"""
+        # TODO: This part is added now, check if it's correct
+        # + tagPrefix
+        # + """connect id1="{{model.attributes['id'].value}}" var1="transformer_terminal1" id2="IBus_{{model.attributes['id'].value}}" var2="infiniteBus_terminal"/>
+        # <"""
+        # TODO: to here
         + tagPrefix
         + """connect id1="{{model.attributes['id'].value}}" var1="generator_omegaRefPu_value" id2="IBus_{{model.attributes['id'].value}}" var2="infiniteBus_omegaRefPu"/>
     {% endfor %}
@@ -235,7 +254,7 @@ simulation tools for power systems.
         f.write(template.render(system=system, models=models))
 
 
-def gen_par(system, output):
+def gen_par_ant(system, output):
     parlist = [x["par"] for x in system["generators"].values()]
     template_src = """<?xml version="1.0" encoding="UTF-8"?>
 <!--
@@ -252,7 +271,7 @@ def gen_par(system, output):
 -->
 <parametersSet xmlns="http://www.rte-france.com/dynawo">
   {% for modelpars in parlist -%}
-  <set id="{{modelpars.attributes['id'].value}}" dydid="{{modelpars.attributes['dydId'].value}}">
+  <set id="{{modelpars.attributes['id'].value}}" dydId="{{modelpars.attributes['dydId'].value}}">
     {% for param in modelpars.getElementsByTagName('par') -%}
     <par name="{{param.attributes['name'].value}}" type="{{param.attributes['type'].value}}" value="{{param.attributes['value'].value}}"/>  
     {% endfor -%}
@@ -269,7 +288,7 @@ def gen_par(system, output):
   {% endfor -%}
 
    {{ system['solver'].toxml() }}
-   
+
 </parametersSet>
     """
     template = jinja2.Template(template_src)
@@ -283,32 +302,70 @@ def gen_par(system, output):
         )
 
 
-# TODO: Substitute the IDA solver for the first line above in order to get the original params from simulation
-# {{ system['solver'].toxml() }}
-# {% for param in modelpars.getElementsByTagName('reference') -%}
-# <par name="{{param.attributes['name'].value}}" type="{{param.attributes['type'].value}}" value="1"/>
-# {% endfor -%}
+def gen_par(system, output):
+    parlist = [x["par"] for x in system["generators"].values()]
+
+    template_src = """<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Copyright (c) 2022, RTE (http://www.rte-france.com)
+    See AUTHORS.txt
+    All rights reserved.
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, you can obtain one at http://mozilla.org/MPL/2.0/.
+    SPDX-License-Identifier: MPL-2.0
+
+    This file is part of Dynawo, an hybrid C++/Modelica open source suite of
+    simulation tools for power systems.
+-->
+<parametersSet xmlns="http://www.rte-france.com/dynawo">
+  {% for modelpars in parlist -%}
+  <set id="{{modelpars.attributes['id'].value}}" dydId="{{modelpars.attributes['dydId'].value}}">
+    {% for param in modelpars.getElementsByTagName('par') -%}
+    <par name="{{param.attributes['name'].value}}" type="{{param.attributes['type'].value}}" value="{{param.attributes['value'].value}}"/>  
+    {% endfor -%}
+    {% for param in modelpars.getElementsByTagName('reference') -%}
+    <reference name="{{param.attributes['name'].value}}" origData="{{param.attributes['origData'].value}}" origName="{{param.attributes['origName'].value}}" type="{{param.attributes['type'].value}}"/>
+    {% endfor -%}
+  </set>
+  {% endfor -%}
+
+   {{ system['solver'].toxml() }}
+
+</parametersSet>
+    """
+    template = jinja2.Template(template_src)
+    with open(output, "w") as f:
+        f.write(
+            template.render(
+                system=system,
+                parlist=parlist,
+                infinite_bus_table=system["infinite_bus_table"],
+            )
+        )
 
 
 def gen_par_IBus(system, output, parlist):
 
-    file = minidom.parse(output)
-    parametersSet = file.getElementsByTagName("parametersSet")[0]
+    xml_file = minidom.parse(output)
+    parametersSet = xml_file.getElementsByTagName("parametersSet")[0]
 
-    set_list = file.getElementsByTagName("set")
+    set_list = xml_file.getElementsByTagName("set")
     for modelpars in parlist:
         for set_elem in set_list:
-            if set_elem.getAttribute("id") == modelpars.attributes["id"].value:
+            if set_elem.getAttribute("id") == modelpars.attributes[
+                "id"
+            ].value and not set_elem.hasAttribute("dydId"):
                 set_elem.setAttribute("dydId", modelpars.attributes["dydId"].value)
                 break
 
-        IBus_par = file.createElement("set")
+        IBus_par = xml_file.createElement("set")
         IBus_par.setAttribute("id", "IBus_" + modelpars.attributes["dydId"].value)
 
-        par1 = file.createElement("par")
-        par2 = file.createElement("par")
-        par3 = file.createElement("par")
-        par4 = file.createElement("par")
+        par1 = xml_file.createElement("par")
+        par2 = xml_file.createElement("par")
+        par3 = xml_file.createElement("par")
+        par4 = xml_file.createElement("par")
 
         par1.setAttribute("name", "infiniteBus_UPuTableName")
         par2.setAttribute("name", "infiniteBus_UPhaseTableName")
@@ -343,7 +400,7 @@ def gen_par_IBus(system, output, parlist):
 
     # Write output without whitespaces
     with open(output, "w") as out:
-        xml_str = file.toprettyxml()
+        xml_str = xml_file.toprettyxml()
         xml_str = os.linesep.join(
             [
                 s
@@ -356,8 +413,8 @@ def gen_par_IBus(system, output, parlist):
 
 
 def solve_references(par_file, dumpinit_folder):
-    file = minidom.parse(par_file)
-    reference_list = file.getElementsByTagName("reference")
+    xml_file = minidom.parse(par_file)
+    reference_list = xml_file.getElementsByTagName("reference")
 
     for reference_elem in reference_list:
         if reference_elem.parentNode.hasAttribute("dydId"):
@@ -374,7 +431,7 @@ def solve_references(par_file, dumpinit_folder):
                         break
             if value_ref == -9999999999:
                 print(reference_elem.parentNode.getAttribute("dydId"), atr_ref)
-            par_ref = file.createElement("par")
+            par_ref = xml_file.createElement("par")
             par_ref.setAttribute("type", reference_elem.getAttribute("type"))
             par_ref.setAttribute("name", atr_ref)
             par_ref.setAttribute("value", str(value_ref))
@@ -384,7 +441,7 @@ def solve_references(par_file, dumpinit_folder):
 
     # Write output without whitespaces
     with open(par_file, "w") as out:
-        xml_str = file.toprettyxml()
+        xml_str = xml_file.toprettyxml()
         xml_str = os.linesep.join(
             [
                 s
@@ -396,42 +453,7 @@ def solve_references(par_file, dumpinit_folder):
         out.close()
 
 
-def gen_crv(system, output):
-    models = [x["dyd"] for x in system["generators"].values()]
-    template_src = """<?xml version='1.0' encoding='UTF-8'?>
-<!--
-Copyright (c) 2022, RTE (http://www.rte-france.com)
-See AUTHORS.txt
-All rights reserved.
-This Source Code Form is subject to the terms of the Mozilla Public
-License, v. 2.0. If a copy of the MPL was not distributed with this
-file, you can obtain one at http://mozilla.org/MPL/2.0/.
-SPDX-License-Identifier: MPL-2.0
-
-This file is part of Dynawo, an hybrid C++/Modelica open source suite of
-simulation tools for power systems.
--->
-<curvesInput xmlns="http://www.rte-france.com/dynawo">
-    {% for model in models %}
-    <curve model="{{model.attributes['id'].value}}" variable="generator_termina_V_re"/>
-    <curve model="{{model.attributes['id'].value}}" variable="generator_termina_V_im"/>
-    <curve model="{{model.attributes['id'].value}}" variable="generator_termina_I_re"/>
-    <curve model="{{model.attributes['id'].value}}" variable="generator_termina_I_re"/>
-    {% endfor %}
-</curvesInput>
-    """
-    template = jinja2.Template(template_src)
-
-    with open(output, "w") as f:
-        f.write(template.render(models=models))
-
-
-def remove_namespaces(file, tag):
-    os.system("sed -i 's/<{}:/</g' {}".format(tag, file))
-    os.system("sed -i 's/<\\/{}:/<\\//g' {}".format(tag, file))
-
-
-def gen_replay_files(root_dir, model, terminals_csv, output_dir, tagPrefix):
+def gen_replay_files(root_dir, model, terminals_csv, output_dir):
     os.makedirs(output_dir, exist_ok=True)
 
     # Generate the replay table file
@@ -444,21 +466,18 @@ def gen_replay_files(root_dir, model, terminals_csv, output_dir, tagPrefix):
         output_dir + model + x for x in [".jobs", ".par", ".dyd", ".iidm", ".crv"]
     ]
 
-    # remove_namespaces(in_dyd, 'dyn')
-    # remove_namespaces(in_iidm, 'iidm')
-
     # Get simulation config params
     system = get_jobs_config(in_jobs)
 
     # Get list of all dyd gens
-    gen_dict = get_generators(in_dyd, tagPrefix)
+    gen_dict = get_generators(in_dyd)
 
     # TODO: At the moment the original parameters are used, in
     # the future, to save memory, only the generator parameters
     # with these functions could be selected
 
     # Add gen initilization params
-    get_gen_params(in_par, gen_dict)
+    gen_dict = get_gen_params(in_par, gen_dict)
 
     # Get initialization params that are defined in the iidm
     parlist = list(dict.fromkeys([x["par"] for x in gen_dict.values()]))
@@ -474,14 +493,14 @@ def gen_replay_files(root_dir, model, terminals_csv, output_dir, tagPrefix):
 
     # Generate the replay simulation files with all the data obtained above
     gen_jobs(system, out_jobs)
-    gen_dyd(system, out_dyd, tagPrefix)
+
+    # gen_dyd(system, out_dyd, get_tag_prefix(minidom.parse(in_dyd)))
+    gen_dyd(system, out_dyd, "dyn:")
     os.system("cp '{}/{}.crv' '{}/{}.crv'".format(root_dir, model, output_dir, model))
     os.system("cp '{}/{}.par' '{}/{}.par'".format(root_dir, model, output_dir, model))
     # Add IBus to pars
     # gen_par(system, out_par)
     gen_par_IBus(system, out_par, parlist)
     solve_references(out_par, os.path.dirname(terminals_csv) + "/../initValues/globalInit/")
-
-    # TODO: Study what curves should be replayed and modify this part
 
     return system
