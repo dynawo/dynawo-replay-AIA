@@ -77,21 +77,35 @@ def replay(
     replay_generators,
 ):
     # Generate the replay files
-    replay_code.gen_replay_files(base_case_dir, case_name, terminals_csv, output_dir)
+    system = replay_code.gen_replay_files(base_case_dir, case_name, terminals_csv, output_dir)
 
     replay_single_generators(
-        case_name, output_dir, jobs_file, dynawo_path, curves_file, replay_generators
+        system,
+        case_name,
+        output_dir,
+        jobs_file,
+        dynawo_path,
+        curves_file,
+        replay_generators,
+        terminals_csv,
     )
 
 
 def replay_single_generators(
-    case_name, output_dir, jobs_file, dynawo_path, curves_file, replay_generators
+    system,
+    case_name,
+    output_dir,
+    jobs_file,
+    dynawo_path,
+    curves_file,
+    replay_generators,
+    terminals_csv,
 ):
     dydfile = output_dir + case_name + ".dyd"
-    crvfile = curves_file
+
     gen_ids = []
 
-    generators = replay_code.get_generators(dydfile)
+    generators = system["generators"]
 
     if replay_generators[0] == "ALL":
         # Get list of all generators of the dyd case file
@@ -101,23 +115,36 @@ def replay_single_generators(
         replay_generators_list = replay_generators
 
     for gen in replay_generators_list:
-        system = {}
-        system["generators"] = {gen: generators[gen]}
-        system["name"] = case_name
+        system_indiv = {}
+        system_indiv["generators"] = {gen: generators[gen]}
+        system_indiv["name"] = case_name
+        system_indiv["infinite_bus_table"] = system["infinite_bus_table"]
+        system_indiv["solver"] = system["solver"]
         gen_id = generators[gen]["dyd"].attributes["id"].value
         gen_ids.append(gen_id)
         output_dir_gen = (output_dir + gen_id + "/").replace(" ", "_")
         os.makedirs(output_dir_gen, exist_ok=True)
         os.system("cp '{}/{}' '{}/'".format(output_dir, jobs_file, output_dir_gen))
-        os.system("cp '{}/'*.par '{}/'".format(output_dir, output_dir_gen))
         os.system("cp '{}/'*.crv '{}/'".format(output_dir, output_dir_gen))
 
+        if curves_file is None:
+            crvfile = output_dir + case_name + ".crv"
+        else:
+            crvfile = curves_file
+
         gen_dydfile = output_dir_gen + gen_id + ".dyd"
+        gen_parfile = output_dir_gen + case_name + ".par"
         gen_jobs_file_path = output_dir_gen + jobs_file
 
         # Create the single gen file
         replay_code.gen_dyd(
-            system, gen_dydfile, allcurves_code.get_tag_prefix(minidom.parse(dydfile))
+            system_indiv, gen_dydfile, allcurves_code.get_tag_prefix(minidom.parse(dydfile))
+        )
+
+        replay_code.gen_par(system_indiv, gen_parfile)
+        replay_code.gen_par_IBus(system, gen_parfile, [generators[gen]["par"]])
+        replay_code.solve_references(
+            gen_parfile, os.path.dirname(terminals_csv) + "/../initValues/globalInit/"
         )
 
         allcurves_code.change_jobs_file(gen_jobs_file_path, gen_dydfile)
@@ -192,20 +219,20 @@ def get_metrics(values_1, times_1, values_2, times_2, ss_time, ss_tol):
     stable1, TSS_1 = calc_steady(times_1, values_1, ss_time, ss_tol)
     stable2, TSS_2 = calc_steady(times_2, values_2, ss_time, ss_tol)
 
-    TT = abs(TSS_1 - TSS_2)
-
     # Calc Diff peak to peak
     PP_1 = abs(max(values_1) - min(values_1))
     PP_2 = abs(max(values_2) - min(values_2))
     dPP_abs = abs(PP_1 - PP_2)
 
-    if values_1[-1] == 0:
+    if PP_1 == 0:
         dPP_rel = -999999999
     else:
-        dPP_rel = dPP_abs / values_1[-1]
+        dPP_rel = dPP_abs / PP_1
 
     # Calc Diff steady state
     if stable1 and stable2:
+        TT = abs(TSS_1 - TSS_2)
+
         SS_1 = values_1[-1]
         SS_2 = values_2[-1]
         dSS_abs = abs(SS_1 - SS_2)
@@ -219,6 +246,7 @@ def get_metrics(values_1, times_1, values_2, times_2, ss_time, ss_tol):
         SS_2 = -999999999
         dSS_abs = -999999999
         dSS_rel = -999999999
+        TT = -999999999
 
     return TT, TSS_1, TSS_2, dPP_abs, dPP_rel, PP_1, PP_2, dSS_abs, dSS_rel, SS_1, SS_2
 
