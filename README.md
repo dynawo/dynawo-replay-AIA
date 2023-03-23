@@ -1,4 +1,4 @@
-# Project Name: DynawoReplay
+# DynawoReplay
 This repository contains the code for a software project that aims to execute contingencies of electrical power grids using the Dynawo simulator from RTE. The project allows for the execution of large power grid simulations and saving only the necessary information in the form of curves. This enables the creation of smaller simulations with detailed information (all the desired curves) without the overhead of executing the entire large case.
 
 ## How it Works
