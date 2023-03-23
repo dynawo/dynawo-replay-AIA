@@ -4,6 +4,10 @@ import pandas as pd
 import numpy as np
 from xml.dom import minidom
 
+# Define where to connect de generator with the infinite bus
+GENERATOR_CONNECTION_TERMINAL = '"generator_terminal"'
+# GENERATOR_CONNECTION_TERMINAL = '"transformer_terminal1"'
+
 
 def get_tag_prefix(xml_file):
     # Get namespace
@@ -234,13 +238,10 @@ simulation tools for power systems.
         + """blackBoxModel id="IBus_{{model.attributes['id'].value}}" lib="InfiniteBusFromTable" parFile="{{system['name']}}.par" parId="IBus_{{model.attributes['id'].value}}"/>
     <"""
         + tagPrefix
-        + """connect id1="{{model.attributes['id'].value}}" var1="generator_terminal" id2="IBus_{{model.attributes['id'].value}}" var2="infiniteBus_terminal"/>
+        + """connect id1="{{model.attributes['id'].value}}" var1="""
+        + GENERATOR_CONNECTION_TERMINAL
+        + """ id2="IBus_{{model.attributes['id'].value}}" var2="infiniteBus_terminal"/>
     <"""
-        # TODO: This part is added now, check if it's correct
-        # + tagPrefix
-        # + """connect id1="{{model.attributes['id'].value}}" var1="transformer_terminal1" id2="IBus_{{model.attributes['id'].value}}" var2="infiniteBus_terminal"/>
-        # <"""
-        # TODO: to here
         + tagPrefix
         + """connect id1="{{model.attributes['id'].value}}" var1="generator_omegaRefPu_value" id2="IBus_{{model.attributes['id'].value}}" var2="infiniteBus_omegaRefPu"/>
     {% endfor %}
