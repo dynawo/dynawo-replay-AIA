@@ -33,6 +33,21 @@ def parser_args_replay():
     return args
 
 
+def parser_args_replay_value():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("jobs_path")
+    parser.add_argument("output_dir")
+    parser.add_argument("dynawo_path")
+    parser.add_argument("curves_file")
+    parser.add_argument("replay_generator")
+    parser.add_argument("value_name")
+    parser.add_argument("time_get_value")
+
+    args = parser.parse_args()
+    return args
+
+
 def run_simulation(
     base_case_dir,
     jobs_file,
@@ -337,6 +352,29 @@ def original_vs_replay_generators(original_csv, replay_dir):
         original_vs_replay(original_csv, gen_dir + "/outputs/curves/curves.csv", fig_dir, title="")
 
 
+def get_curve_value(curves_file, replay_gen_name, value_name, time_get_value):
+    df_curves = pd.read_csv(curves_file, sep=";")
+
+    list_time = list(df_curves["time"])
+
+    if (replay_gen_name + "_" + value_name) in list(df_curves.columns):
+        list_values = list(df_curves[replay_gen_name + "_" + value_name])
+    else:
+        print("The value is not in the initial curves or is not part of the generator variables")
+        exit()
+
+    i_pos = -1
+    for i in range(len(list_time) - 1):
+        if list_time[i] <= time_get_value and time_get_value <= list_time[i + 1]:
+            i_pos = i + 1
+            break
+
+    if i_pos != -1:
+        print("Value: " + str(list_values[i_pos]))
+    else:
+        print("The given time is not within the simulation")
+
+
 def runner(
     original_jobs_file_path,
     output_dir,
@@ -347,6 +385,8 @@ def runner(
     gen_crv,
     gen_csv,
     replay_gen,
+    value_name,
+    time_get_value,
 ):
     # Get the case name
     case_name = subprocess.getoutput("basename " + original_jobs_file_path).split(".")[0]
@@ -424,6 +464,17 @@ def runner(
             print("Plotting results")
             original_vs_replay_generators(original_csv, simulation_output_dir + "replay")
 
+        if time_get_value is not None and value_name is not None:
+            get_curve_value(
+                simulation_output_dir
+                + "replay/"
+                + replay_generators[0]
+                + "/outputs/curves/curves.csv",
+                replay_generators[0],
+                value_name,
+                time_get_value,
+            )
+
 
 def pipeline_validation():
 
@@ -439,6 +490,8 @@ def pipeline_validation():
         True,
         True,
         True,
+        None,
+        None,
     )
 
 
@@ -456,6 +509,8 @@ def case_preparation():
         True,
         True,
         False,
+        None,
+        None,
     )
 
 
@@ -473,4 +528,25 @@ def curves_creation():
         False,
         False,
         True,
+        None,
+        None,
+    )
+
+
+def get_value():
+
+    args = parser_args_replay_value()
+
+    runner(
+        os.path.abspath(args.jobs_path),
+        os.path.abspath(args.output_dir) + "/",
+        os.path.abspath(args.dynawo_path),
+        os.path.abspath(args.curves_file),
+        [args.replay_generator],
+        False,
+        False,
+        False,
+        True,
+        args.value_name,
+        float(args.time_get_value),
     )

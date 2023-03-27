@@ -431,7 +431,11 @@ def solve_references(par_file, dumpinit_folder):
                         value_ref = line.split("=")[1].replace(" ", "")
                         break
             if value_ref == -9999999999:
-                print(reference_elem.parentNode.getAttribute("dydId"), atr_ref)
+                print(
+                    reference_elem.parentNode.getAttribute("dydId"),
+                    atr_ref,
+                    "not found in dumpInit",
+                )
             par_ref = xml_file.createElement("par")
             par_ref.setAttribute("type", reference_elem.getAttribute("type"))
             par_ref.setAttribute("name", atr_ref)
