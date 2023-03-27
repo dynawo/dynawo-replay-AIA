@@ -66,5 +66,6 @@ dependencies = [
 pipeline_validation = "dynawo_replay.simulator:pipeline_validation"
 case_preparation = "dynawo_replay.simulator:case_preparation"
 curves_creation = "dynawo_replay.simulator:curves_creation"
+get_value = "dynawo_replay.simulator:get_value"
 
 
