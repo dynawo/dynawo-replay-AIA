@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<curvesInput xmlns="http://www.rte-france.com/dynawo">
+<curve model="_LOAD___12_EC" variable="load_terminal_V_im"/>
+<curve model="_LOAD___12_EC" variable="load_terminal_V_re"/>
+<curve model="_LOAD___12_EC" variable="load_terminal_i_im"/>
+<curve model="_LOAD___12_EC" variable="load_terminal_i_re"/>
+<curve model="GEN___12_SM" variable="generator_terminal_V_im"/>
+<curve model="GEN___12_SM" variable="generator_terminal_V_re"/>
+<curve model="GEN___12_SM" variable="generator_terminal_i_im"/>
+<curve model="GEN___12_SM" variable="generator_terminal_i_re"/>
+<curve model="NodeFault" variable="fault_terminal_V_im"/>
+<curve model="NodeFault" variable="fault_terminal_V_re"/>
+<curve model="NodeFault" variable="fault_terminal_i_im"/>
+<curve model="NodeFault" variable="fault_terminal_i_re"/>
+</curvesInput>

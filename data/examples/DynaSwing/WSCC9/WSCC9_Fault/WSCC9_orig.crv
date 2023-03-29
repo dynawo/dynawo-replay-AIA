@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<curvesInput xmlns="http://www.rte-france.com/dynawo">
+<curve model="FAULT_GEN_2" variable="fault_terminal_V_im"/>
+<curve model="FAULT_GEN_2" variable="fault_terminal_V_re"/>
+<curve model="FAULT_GEN_2" variable="fault_terminal_i_im"/>
+<curve model="FAULT_GEN_2" variable="fault_terminal_i_re"/>
+<curve model="OMEGA_REF" variable="omegaRef_0_value"/>
+<curve model="OMEGA_REF" variable="omegaRef_1_value"/>
+<curve model="OMEGA_REF" variable="omegaRef_2_value"/>
+<curve model="OMEGA_REF" variable="omegaRef_3_value"/>
+<curve model="OMEGA_REF" variable="omegaRef_4_value"/>
+<curve model="OMEGA_REF" variable="omegaRef_5_value"/>
+<curve model="OMEGA_REF" variable="omegaRef_6_value"/>
+<curve model="OMEGA_REF" variable="omegaRef_7_value"/>
+<curve model="OMEGA_REF" variable="omegaRef_8_value"/>
+<curve model="OMEGA_REF" variable="omegaRef_9_value"/>
+<curve model="OMEGA_REF" variable="omega_grp_0_value"/>
+<curve model="OMEGA_REF" variable="omega_grp_1_value"/>
+<curve model="OMEGA_REF" variable="omega_grp_2_value"/>
+<curve model="OMEGA_REF" variable="omegaRef_grp_0_value"/>
+<curve model="OMEGA_REF" variable="omegaRef_grp_1_value"/>
+<curve model="OMEGA_REF" variable="omegaRef_grp_2_value"/>
+</curvesInput>

@@ -1,0 +1,42 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!--
+Copyright (c) 2022, RTE (http://www.rte-france.com)
+See AUTHORS.txt
+All rights reserved.
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, you can obtain one at http://mozilla.org/MPL/2.0/.
+SPDX-License-Identifier: MPL-2.0
+
+This file is part of Dynawo, an hybrid C++/Modelica open source suite of
+simulation tools for power systems.
+-->
+<dyn:dynamicModelsArchitecture xmlns:dyn="http://www.rte-france.com/dynawo">
+    
+    <dyn:blackBoxModel id="GEN____1_SM" lib="GeneratorSynchronousFourWindingsProportionalRegulations" parFile="IEEE14.par" parId="GEN____1_SM" />
+    <dyn:blackBoxModel id="IBus_GEN____1_SM" lib="InfiniteBusFromTable" parFile="IEEE14.par" parId="IBus_GEN____1_SM"/>
+    <dyn:connect id1="GEN____1_SM" var1="generator_terminal" id2="IBus_GEN____1_SM" var2="infiniteBus_terminal"/>
+    <dyn:connect id1="GEN____1_SM" var1="generator_omegaRefPu_value" id2="IBus_GEN____1_SM" var2="infiniteBus_omegaRefPu"/>
+    
+    <dyn:blackBoxModel id="GEN____2_SM" lib="GeneratorSynchronousFourWindingsProportionalRegulations" parFile="IEEE14.par" parId="GEN____2_SM" />
+    <dyn:blackBoxModel id="IBus_GEN____2_SM" lib="InfiniteBusFromTable" parFile="IEEE14.par" parId="IBus_GEN____2_SM"/>
+    <dyn:connect id1="GEN____2_SM" var1="generator_terminal" id2="IBus_GEN____2_SM" var2="infiniteBus_terminal"/>
+    <dyn:connect id1="GEN____2_SM" var1="generator_omegaRefPu_value" id2="IBus_GEN____2_SM" var2="infiniteBus_omegaRefPu"/>
+    
+    <dyn:blackBoxModel id="GEN____3_SM" lib="GeneratorSynchronousFourWindingsProportionalRegulations" parFile="IEEE14.par" parId="GEN____3_SM" />
+    <dyn:blackBoxModel id="IBus_GEN____3_SM" lib="InfiniteBusFromTable" parFile="IEEE14.par" parId="IBus_GEN____3_SM"/>
+    <dyn:connect id1="GEN____3_SM" var1="generator_terminal" id2="IBus_GEN____3_SM" var2="infiniteBus_terminal"/>
+    <dyn:connect id1="GEN____3_SM" var1="generator_omegaRefPu_value" id2="IBus_GEN____3_SM" var2="infiniteBus_omegaRefPu"/>
+    
+    <dyn:blackBoxModel id="GEN____6_SM" lib="GeneratorSynchronousThreeWindingsProportionalRegulations" parFile="IEEE14.par" parId="GEN____6_SM" />
+    <dyn:blackBoxModel id="IBus_GEN____6_SM" lib="InfiniteBusFromTable" parFile="IEEE14.par" parId="IBus_GEN____6_SM"/>
+    <dyn:connect id1="GEN____6_SM" var1="generator_terminal" id2="IBus_GEN____6_SM" var2="infiniteBus_terminal"/>
+    <dyn:connect id1="GEN____6_SM" var1="generator_omegaRefPu_value" id2="IBus_GEN____6_SM" var2="infiniteBus_omegaRefPu"/>
+    
+    <dyn:blackBoxModel id="GEN____8_SM" lib="GeneratorSynchronousThreeWindingsProportionalRegulations" parFile="IEEE14.par" parId="GEN____8_SM" />
+    <dyn:blackBoxModel id="IBus_GEN____8_SM" lib="InfiniteBusFromTable" parFile="IEEE14.par" parId="IBus_GEN____8_SM"/>
+    <dyn:connect id1="GEN____8_SM" var1="generator_terminal" id2="IBus_GEN____8_SM" var2="infiniteBus_terminal"/>
+    <dyn:connect id1="GEN____8_SM" var1="generator_omegaRefPu_value" id2="IBus_GEN____8_SM" var2="infiniteBus_omegaRefPu"/>
+    
+</dyn:dynamicModelsArchitecture>
+    

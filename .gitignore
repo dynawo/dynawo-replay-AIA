@@ -1,0 +1,13 @@
+*.csv
+*.txt
+*.log
+*.out
+*__pycache__*
+*outputs*
+*Results*
+code/dr_venv
+code/dist
+code/build
+code/src/dynawo_replay.egg-info
+
+
