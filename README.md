@@ -39,3 +39,8 @@ case_preparation [-h] jobs_path output_dir dynawo_path
 curves_creation [-h] jobs_path output_dir dynawo_path curves_file [replay_generators]
 ```
 (it is used to obtain the curves of a case already prepared from one, several or all of its generators)
+```
+get_value [-h] jobs_path output_dir dynawo_path curves_file replay_generator value_name time_get_value
+```
+(it is used to obtain the curves of a case already prepared from one generator and get an specified value at specified time)
+
