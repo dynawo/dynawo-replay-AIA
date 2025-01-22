@@ -1,8 +1,9 @@
 import os
-import numpy as np
-import matplotlib.pyplot as plt
-from xml.dom import minidom
 from xml import sax
+from xml.dom import minidom
+
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 def get_tag_prefix(xml_file):
@@ -48,7 +49,9 @@ def add_logs(jobsfilename):
 def reconstruct_from_disk(name, target="states", path="results", ranks=[10]):
     reconstructed = []
     for r in ranks:
-        filepath = "{}/{}/{}_{}_compressed_rank_{}.npy".format(path, name, name, target, r)
+        filepath = "{}/{}/{}_{}_compressed_rank_{}.npy".format(
+            path, name, name, target, r
+        )
         with open(filepath, "rb") as f:
             u = np.load(f)
             d = np.load(f)
@@ -137,7 +140,8 @@ def add_ini_par_file(jobsfile):
 
 def add_precision_jobs_file(jobsfile):
     xml_file = minidom.parse(jobsfile)
-    simulation = xml_file.getElementsByTagName("simulation")[0]
+    tagPrefix = get_tag_prefix(xml_file)
+    simulation = xml_file.getElementsByTagName(tagPrefix + "simulation")[0]
     system = {}
 
     if "precision" not in simulation.attributes:
@@ -185,7 +189,6 @@ def gen_all_curves_fast(
     output_dir,
     remove_previous,
 ):
-
     # Get generators of dyd file and create the new curves file
 
     dyd_path = case_dir + "/{}.dyd".format(case_name)
@@ -210,10 +213,11 @@ def gen_all_curves_fast(
     # Modify original curves file
     crv_path = case_dir + "/{}.crv".format(case_name)
     crvfile = minidom.parse(crv_path)
+    tagPrefix = get_tag_prefix(crvfile)
 
-    curvesInput = crvfile.getElementsByTagName("curvesInput")[0]
+    curvesInput = crvfile.getElementsByTagName(tagPrefix + "curvesInput")[0]
     if remove_previous:
-        curves = curvesInput.getElementsByTagName("curve")
+        curves = curvesInput.getElementsByTagName(tagPrefix + "curve")
         for curve in curves:
             curve.parentNode.removeChild(curve)
 
@@ -247,6 +251,8 @@ def gen_all_curves_fast(
     # Write output without whitespaces
     with open(crv_path_output, "w") as out:
         xml_str = crvfile.toprettyxml()
-        xml_str = os.linesep.join([s for s in xml_str.splitlines() if s != "	" and s])
+        xml_str = os.linesep.join(
+            [s for s in xml_str.splitlines() if s != "	" and s]
+        )
         out.write(xml_str)
         out.close()

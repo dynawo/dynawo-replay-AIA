@@ -1,13 +1,20 @@
-*.csv
-*.txt
-*.log
-*.out
-*__pycache__*
-*outputs*
-*Results*
-code/dr_venv
-code/dist
-code/build
-code/src/dynawo_replay.egg-info
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
 
+# Virtual environments
+.venv
+.env
 
+# Other
+TODO
+.python-version
+uv.lock
+
+# Editor config files
+.vscode
+.idea

@@ -1,0 +1,43 @@
+[project]
+name = "dynawo-replay"
+version = "0.1.0"
+description = "A tool to replay curves"
+authors = [
+    {name="Guiu Oms", email="omsg@aia.es"},
+    {name="Martín Campos", email="camposm@aia.es"},
+]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.1.8",
+    "jinja2>=3.1.5",
+    "names>=0.3.0",
+    "numpy>=2.2.1",
+    "pandas>=2.2.3",
+    "pydantic>=2.10.5",
+    "pydantic-settings>=2.7.1",
+    "scikit-learn>=1.6.1",
+    "typer>=0.15.1",
+    "xsdata>=24.12",
+]
+
+[project.optional-dependencies]
+plotting = [
+    "matplotlib>=3.10.0",
+    "seaborn>=0.13.2",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.5",
+    "ipython>=8.31.0",
+    "pytest>=8.3.4",
+    "xsdata[cli,lxml]>=24.12",
+]
+
+[project.scripts]
+dynawo-replay = "dynawo_replay.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

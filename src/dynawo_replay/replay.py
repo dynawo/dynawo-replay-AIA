@@ -1,8 +1,9 @@
 import os
-import jinja2
-import pandas as pd
-import numpy as np
 from xml.dom import minidom
+
+import jinja2
+import numpy as np
+import pandas as pd
 
 # Define where to connect de generator with the infinite bus
 GENERATOR_CONNECTION_TERMINAL = '"generator_terminal"'
@@ -31,14 +32,18 @@ def gen_table(csvfile, output_dir):
     time = df.iloc[:, 0]
     time = time - list(time)[0]
     # term_names = [x.split("_V_re")[0].replace(" ", "-") for x in df.columns[1:-1] if "V_re" in x]
-    term_names = [x.split("_V_re")[0].replace(" ", " ") for x in df.columns[1:-1] if "V_re" in x]
+    term_names = [
+        x.split("_V_re")[0].replace(" ", " ") for x in df.columns[1:-1] if "V_re" in x
+    ]
     omega_names = [x.replace(" ", " ") for x in df.columns[1:-1] if "omega" in x]
     # omega_names = [x.replace(" ", "-") for x in df.columns[1:-1] if "omega" in x]
     with open(output_dir + "table.txt", "w") as f:
         f.write("#1\n")
         for omega in omega_names:
             Omg = df[omega]
-            omega = omega.replace(" ", "-")  # need to remove spaces in column names in table
+            omega = omega.replace(
+                " ", "-"
+            )  # need to remove spaces in column names in table
             # f.write('#1\n double OmegaRefPu({},2)\n 0 1\n {} 1\n'.format(time.iloc[-1]))
             f.write("\ndouble {}({},2)\n".format(omega, len(Omg)))
             np.savetxt(f, np.array([time, Omg]).T, fmt="%.10f")
@@ -47,7 +52,9 @@ def gen_table(csvfile, output_dir):
             cols = df[[terminal + "_V_re", terminal + "_V_im"]]
             U = np.sqrt(cols[terminal + "_V_re"] ** 2 + cols[terminal + "_V_im"] ** 2)
             UPhase = np.arctan2(cols[terminal + "_V_im"], cols[terminal + "_V_re"])
-            terminal = terminal.replace(" ", "-")  # need to remove spaces in column names in table
+            terminal = terminal.replace(
+                " ", "-"
+            )  # need to remove spaces in column names in table
             f.write("\ndouble {}({},2)\n".format(terminal + "_U", len(U)))
             np.savetxt(f, np.array([time, U]).T, fmt="%.10f")
             f.write("\ndouble {}({},2)\n".format(terminal + "_UPhase", len(U)))
@@ -58,7 +65,9 @@ def gen_table(csvfile, output_dir):
 
 def get_jobs_config(jobsfile):
     xml_file = minidom.parse(jobsfile)
-    simulation = xml_file.getElementsByTagName("simulation")[0]
+    # Get namespace
+    tagPrefix = get_tag_prefix(xml_file)
+    simulation = xml_file.getElementsByTagName(tagPrefix + "simulation")[0]
     system = {}
     system["simulation"] = {
         "startTime": str(0),
@@ -107,7 +116,9 @@ def get_gen_params(parfile, models_dict):
             print(value["dyd"].attributes["id"].value)
             continue
         params = params[0].cloneNode(True)
-        params.setAttribute("dydId", value["dyd"].attributes["id"].value)  # set parId to id
+        params.setAttribute(
+            "dydId", value["dyd"].attributes["id"].value
+        )  # set parId to id
         # get_refs(params, models_dict, iidmfile)
         models_dict[key]["par"] = params
     return models_dict
@@ -118,12 +129,15 @@ def get_solver_params(jobsfile, parfile, system):
     par = minidom.parse(parfile)
 
     # Get namespace
-    tagPrefix = get_tag_prefix(par)
+    tagPrefix1 = get_tag_prefix(jobs)
+    tagPrefix2 = get_tag_prefix(par)
 
-    solver = jobs.getElementsByTagName("solver")[0]
-    parsets = par.getElementsByTagName(tagPrefix + "set")
+    solver = jobs.getElementsByTagName(tagPrefix1 + "solver")[0]
+    parsets = par.getElementsByTagName(tagPrefix2 + "set")
     system["solver"] = [
-        x for x in parsets if solver.attributes["parId"].value == x.attributes["id"].value
+        x
+        for x in parsets
+        if solver.attributes["parId"].value == x.attributes["id"].value
     ][0]
     system["solver"].setAttribute("lib", solver.getAttribute("lib"))
 
@@ -145,10 +159,15 @@ def get_refs(generators, parsets, iidmfile):
         gen = [
             x
             for x in iidm_generators
-            if x.attributes["id"].value in dyd_gen_id or dyd_gen_id in x.attributes["id"].value
+            if x.attributes["id"].value in dyd_gen_id
+            or dyd_gen_id in x.attributes["id"].value
         ]
         if len(gen) == 0:
-            print("Generator for references in set {} not found".format(s.attributes["id"].value))
+            print(
+                "Generator for references in set {} not found".format(
+                    s.attributes["id"].value
+                )
+            )
             continue
         gen = gen[0]
         for r in refs:
@@ -173,7 +192,9 @@ def get_refs(generators, parsets, iidmfile):
                     for x in iidm.getElementsByTagName("iidm:bus")
                     if x.attributes["id"].value == gen.attributes["bus"].value
                 ][0]
-                r.setAttribute("value", str(float(bus.attributes["angle"].value) * (np.pi / 180)))
+                r.setAttribute(
+                    "value", str(float(bus.attributes["angle"].value) * (np.pi / 180))
+                )
 
 
 def gen_jobs(system, output):
@@ -274,10 +295,10 @@ def gen_par_ant(system, output):
   {% for modelpars in parlist -%}
   <set id="{{modelpars.attributes['id'].value}}" dydId="{{modelpars.attributes['dydId'].value}}">
     {% for param in modelpars.getElementsByTagName('par') -%}
-    <par name="{{param.attributes['name'].value}}" type="{{param.attributes['type'].value}}" value="{{param.attributes['value'].value}}"/>  
+    <par name="{{param.attributes['name'].value}}" type="{{param.attributes['type'].value}}" value="{{param.attributes['value'].value}}"/>
     {% endfor -%}
     {% for param in modelpars.getElementsByTagName('reference') -%}
-    <par name="{{param.attributes['name'].value}}" type="{{param.attributes['type'].value}}" value="{{param.attributes['value'].value}}"/>  
+    <par name="{{param.attributes['name'].value}}" type="{{param.attributes['type'].value}}" value="{{param.attributes['value'].value}}"/>
     {% endfor -%}
   </set>
   <set id="IBus_{{modelpars.attributes['dydId'].value}}">
@@ -323,7 +344,7 @@ def gen_par(system, output):
   {% for modelpars in parlist -%}
   <set id="{{modelpars.attributes['id'].value}}" dydId="{{modelpars.attributes['dydId'].value}}">
     {% for param in modelpars.getElementsByTagName('par') -%}
-    <par name="{{param.attributes['name'].value}}" type="{{param.attributes['type'].value}}" value="{{param.attributes['value'].value}}"/>  
+    <par name="{{param.attributes['name'].value}}" type="{{param.attributes['type'].value}}" value="{{param.attributes['value'].value}}"/>
     {% endfor -%}
     {% for param in modelpars.getElementsByTagName('reference') -%}
     <reference name="{{param.attributes['name'].value}}" origData="{{param.attributes['origData'].value}}" origName="{{param.attributes['origName'].value}}" type="{{param.attributes['type'].value}}"/>
@@ -347,7 +368,6 @@ def gen_par(system, output):
 
 
 def gen_par_IBus(system, output, parlist):
-
     xml_file = minidom.parse(output)
     parametersSet = xml_file.getElementsByTagName("parametersSet")[0]
 
@@ -380,15 +400,18 @@ def gen_par_IBus(system, output, parlist):
 
         par1.setAttribute(
             "value",
-            modelpars.attributes["dydId"].value.replace(" ", "-") + "_generator_terminal_U",
+            modelpars.attributes["dydId"].value.replace(" ", "-")
+            + "_generator_terminal_U",
         )
         par2.setAttribute(
             "value",
-            modelpars.attributes["dydId"].value.replace(" ", "-") + "_generator_terminal_UPhase",
+            modelpars.attributes["dydId"].value.replace(" ", "-")
+            + "_generator_terminal_UPhase",
         )
         par3.setAttribute(
             "value",
-            modelpars.attributes["dydId"].value.replace(" ", "-") + "_generator_omegaRefPu_value",
+            modelpars.attributes["dydId"].value.replace(" ", "-")
+            + "_generator_omegaRefPu_value",
         )
         par4.setAttribute("value", system["infinite_bus_table"])
 
@@ -423,7 +446,9 @@ def solve_references(par_file, dumpinit_folder):
             value_ref = -9999999999
             with open(
                 dumpinit_folder
-                + "dumpInitValues-{}.txt".format(reference_elem.parentNode.getAttribute("dydId"))
+                + "dumpInitValues-{}.txt".format(
+                    reference_elem.parentNode.getAttribute("dydId")
+                )
             ) as f:
                 for line in f:
                     line = line.rstrip()
@@ -506,6 +531,8 @@ def gen_replay_files(root_dir, model, terminals_csv, output_dir):
     # Add IBus to pars
     # gen_par(system, out_par)
     gen_par_IBus(system, out_par, parlist)
-    solve_references(out_par, os.path.dirname(terminals_csv) + "/../initValues/globalInit/")
+    solve_references(
+        out_par, os.path.dirname(terminals_csv) + "/../initValues/globalInit/"
+    )
 
     return system
