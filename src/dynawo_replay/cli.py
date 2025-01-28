@@ -1,36 +1,73 @@
+import datetime
 import os
+from pathlib import Path
 
 import typer
+from contexttimer import Timer
+from rich.prompt import Confirm
 
+from .config import settings
+from .exceptions import CaseNotPreparedForReplay
+from .schemas.curves_input import CurveInput
+from .simulation import Simulation
 from .simulator import runner
 
 app = typer.Typer()
 
 
 @app.command()
-def run(jobs_file: str):
+def run(jobs_file: str, dynawo: Path = settings.DYNAWO_HOME, keep_tmp: bool = False):
     """
-    Executes a large-scale power grid simulation using Dynawo,
+    Executes a large-scale power grid simulation using Dynaωo,
     storing only the minimal data required to enable later reconstruction of curves.
     """
-    # create the Simulation instance with the folder given
-    # calculate the curves needed to simulate
-    # add the curves into to job
-    # run the job
-    # (maybe) compress the final output
-    pass
+    case = Simulation(jobs_file, dynawo)
+    output_folder = case.replayable_base_folder
+    if output_folder.exists():
+        continue_ = Confirm.ask(
+            "Replay base folder for this case already exists and will be overwritten. "
+            "Do you want to continue?"
+        )
+        if not continue_:
+            return
+    with Timer() as t:
+        case.generate_replayable_base(keep_tmp=keep_tmp, save=True)
+    typer.echo(f"Succesfully executed job «{case.job.name}» in {t.elapsed:.2}s.")
+    typer.echo(f"Global output stored in {output_folder}.")
 
 
 @app.command()
-def replay(jobs_file: str, curves: list[str]):
+def replay(
+    jobs_file: str,
+    curves: list[str],
+    dynawo: Path = settings.DYNAWO_HOME,
+    keep_tmp: bool = False,
+):
     """
     Reconstructs the desired variable curves for a specific simulation scenario
     by rerunning localized simulations with the previously stored minimal data.
+    Curves must be passed in format {model}::{variable}.
     """
-    # go to the case folder
-    # build the new Simulation instance with the output
-    # run the new simulation
-    pass
+    parsed_curves = []
+    for curve_str in sorted(curves):
+        model, variable = curve_str.split("::")
+        parsed_curves.append(CurveInput(model=model, variable=variable))
+    with Timer() as t:
+        case = Simulation(jobs_file, dynawo)
+        try:
+            df = case.replay(parsed_curves, keep_tmp=keep_tmp)
+        except CaseNotPreparedForReplay:
+            raise RuntimeError(
+                "Case not prepared for replay. Execute ```run``` command first."
+            )
+        output_file = (
+            case.base_folder
+            / "replay"
+            / f"replay_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv"
+        )
+        df.to_csv(output_file, sep=";")
+    typer.echo(f"Succesfully replayed curves {curves} in {t.elapsed:.2}s.")
+    typer.echo(f"Output stored in {output_file}.")
 
 
 @app.command()

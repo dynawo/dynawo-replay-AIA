@@ -6,7 +6,7 @@ PACKAGE_DIR = Path(__file__).parent
 
 
 class Settings(BaseSettings):
-    DYNAWO_EXECUTABLE: str = "dynawo"
+    DYNAWO_HOME: Path = Path("~/dynawo/")
     TMP_DIR: Path = Path("/tmp/")
 
 

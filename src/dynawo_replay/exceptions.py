@@ -1,0 +1,2 @@
+class CaseNotPreparedForReplay(Exception):
+    pass
