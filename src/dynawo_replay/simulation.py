@@ -1,3 +1,4 @@
+import json
 import shutil
 import subprocess
 import tempfile
@@ -5,26 +6,23 @@ from contextlib import contextmanager
 from itertools import groupby
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from .config import settings
-from .exceptions import CaseNotPreparedForReplay
-from .schemas import (
-    CurveInput,
-    CurvesInput,
-    DynamicModelsArchitecture,
-    Jobs,
-    Model,
-    ParametersSet,
-    parser,
-    serializer,
-)
+from .exceptions import CaseNotPreparedForReplay, DynawoExecutionError
+from .schemas.curves_input import CurveInput, CurvesInput
+from .schemas.ddb_desc import Model
+from .schemas.dyd import BlackBoxModel, Connect, DynamicModelsArchitecture
+from .schemas.io import parser, serializer
+from .schemas.jobs import InitValuesEntry, Jobs
+from .schemas.parameters import Parameter, ParametersSet, Set
 
 
 class Simulation:
     """Interface to interact with Dynaωo simulations"""
 
-    GENERATOR_TERMINAL_VARIABLES = [
+    TERMINAL_VARIABLES = [
         "generator_terminal_V_im",
         "generator_terminal_V_re",
         "generator_terminal_i_im",
@@ -59,7 +57,7 @@ class Simulation:
     @property
     def par_file(self):
         # TODO: Something better needs to be done here
-        return next(self.base_folder.glob("*.par"), None)
+        return next(self.base_folder.glob("*.par"))
 
     @property
     def crv_file(self):
@@ -78,6 +76,16 @@ class Simulation:
         return self.base_folder / self.job.outputs.directory / "curves" / "curves.csv"
 
     @property
+    def dump_init_folder(self):
+        return (
+            self.base_folder / self.job.outputs.directory / "initValues" / "globalInit"
+        )
+
+    @property
+    def replayable_base_folder(self):
+        return self.base_folder / "replay" / "terminals"
+
+    @property
     def dynawo_executable(self):
         return self.dynawo_home / "dynawo.sh"
 
@@ -92,12 +100,17 @@ class Simulation:
 
     def run(self, verbose=False):
         "Execute Dynaωo simulation"
-        subprocess.run(
-            [self.dynawo_executable, "jobs", self.jobs_file],
-            capture_output=not verbose,
-            check=True,
-            text=True,
-        )
+        try:
+            subprocess.run(
+                [self.dynawo_executable, "jobs", self.jobs_file],
+                capture_output=not verbose,
+                check=True,
+                text=True,
+            )
+        except subprocess.CalledProcessError as e:
+            print(e.stdout)
+            print(e.stderr)
+            raise DynawoExecutionError() from e
 
     def list_available_vars(self, model):
         model = parser.parse(self.dynawo_home / "ddb" / f"{model}.desc.xml", Model)
@@ -111,68 +124,234 @@ class Simulation:
         curves.drop(columns=[curves.columns[-1]], inplace=True)
         return curves
 
+    def get_terminal_nodes(self):
+        return [
+            model.id for model in self.dyd.black_box_model if "Generator" in model.lib
+        ]
+
     def get_minimal_curves_for_replay(self):
         "Returns a list of the curves that need to be output in order to do a replay"
-        for model in self.dyd.black_box_model:
-            if "Generator" in model.lib:
-                for var in self.GENERATOR_TERMINAL_VARIABLES:
-                    yield CurveInput(model=model.id, variable=var)
+        return [
+            CurveInput(model=model, variable=var)
+            for model in self.get_terminal_nodes()
+            for var in self.TERMINAL_VARIABLES
+        ]
 
-    @property
-    def replayable_base_folder(self):
-        return self.base_folder / "replay" / "global"
+    def read_relevant_init_values(self):
+        "If the simulation has been run with dumpInit, read the init values tied to references in par file"
+        _init_values = {}
+        for terminal in self.get_terminal_nodes():
+            _init_values[terminal] = {}
+            dump_init_file = self.dump_init_folder / f"dumpInitValues-{terminal}.txt"
+            with dump_init_file.open("r") as f:
+                _lines = f.readlines()
+            dyd_bbm = next(
+                bbm for bbm in self.dyd.black_box_model if bbm.id == terminal
+            )
+            pset = next(pset for pset in self.par.set if pset.id == dyd_bbm.par_id)
+            for reference in pset.reference:
+                line = next(line for line in _lines if line.startswith(reference.name))
+                value = float(line.split("=")[1])
+                _init_values[terminal][reference.name] = value
+        return _init_values
 
-    def generate_replayable_base(self, keep_tmp=False, save=True):
-        minimal_curves = list(self.get_minimal_curves_for_replay())
-        with self.duplicate(keep=keep_tmp) as dup:
-            dup.update_crv(minimal_curves)
-            dup.save()
-            dup.run()
-            curves_df = dup.read_output_curves()
+    def generate_replayable_base(self, keep_tmp=False, save=False):
+        """
+        Run the large scale scenario and generate the data necessary for later replay.
+        The simulation is executed in a replica folder where we set the curves to output to be
+        the minimal curves for each terminal node in the network.
+        We also make sure to dump init values and store the relevant references.
+        The replica is deleted after the simulation is done if keep_tmp=False.
+        The results are saved in self.replayable_base_folder, one file for each terminal node.
+        """
+        minimal_curves = self.get_minimal_curves_for_replay()
+        with self.replica(keep=keep_tmp) as rep:
+            rep.crv.curve = minimal_curves
+            rep.job.outputs.dump_init_values = InitValuesEntry(
+                local=False, global_value=True
+            )
+            rep.save()
+            rep.run()
+            curves_df = rep.read_output_curves()
+            init_values = rep.read_relevant_init_values()
         if save:
             output_folder = self.replayable_base_folder
             output_folder.mkdir(parents=True, exist_ok=True)
-            curves_df.to_parquet(
-                output_folder / "curves.parquet", engine="pyarrow", compression="snappy"
-            )
-        return curves_df
+            for terminal, curves in groupby(minimal_curves, key=lambda x: x.model):
+                _df = curves_df[[f"{terminal}_{curve.variable}" for curve in curves]]
+                _df.columns = _df.columns.str.removeprefix(terminal + "_")
+                _df.to_parquet(
+                    output_folder / f"{terminal}.parquet",
+                    engine="pyarrow",
+                    compression="snappy",
+                )
+                with (output_folder / f"{terminal}_initValues.json").open("w") as f:
+                    json.dump(init_values[terminal], f)
+        return curves_df, init_values
 
     def replay(self, curves: list[CurveInput], keep_tmp=False):
-        global_curves_file = self.replayable_base_folder / "curves.parquet"
-        try:
-            global_curves_df = pd.read_parquet(global_curves_file)
-        except FileNotFoundError:
-            raise CaseNotPreparedForReplay()
+        """
+        Replay a local simulation for each one of the terminal nodes associated to the given curves.
+        The case must be previously prepared with .generate_replayable_case() method.
+        These local simulations are run in a replicated folders where the dynamic architecture is
+        rewritten to only contain the terminal node and a InfiteBusFromTable model.
+        No .iidm file is generated for this case, and the references in model parameters are read
+        from init values dumped in the case preparation.
+        All curves generated are combined into a single dataframe where the values are interpolated
+        to a full time index (it contains time index for each simulation).
+        The replicated folders are deleted if keep_tmp is False.
+        """
         curves_dfs = []
-        for generator, curves_ in groupby(curves, key=lambda x: x.model):
-            with self.duplicate(keep=keep_tmp) as dup:
-                print("generator", generator)
-                print("global.shape", global_curves_df.shape)
-                dup.update_crv(list(curves_))
-                dup.save()
-                dup.run()
-                curves_df = dup.read_output_curves()
+        for terminal, curves_ in groupby(curves, key=lambda x: x.model):
+            try:
+                terminal_df = pd.read_parquet(
+                    self.replayable_base_folder / f"{terminal}.parquet"
+                )
+                dump_init_file = (
+                    self.replayable_base_folder / f"{terminal}_initValues.json"
+                )
+                with dump_init_file.open("r") as f:
+                    terminal_init_values = json.load(f)
+            except FileNotFoundError:
+                raise CaseNotPreparedForReplay()
+            with self.replica(keep=keep_tmp) as rep:
+                rep.generate_ibus_table(terminal_df)
+                terminal_bbm = next(
+                    bbm for bbm in self.dyd.black_box_model if bbm.id == terminal
+                )
+                terminal_bbm.static_id = None
+                rep.dyd = DynamicModelsArchitecture(
+                    black_box_model=[
+                        terminal_bbm,
+                        BlackBoxModel(
+                            id="IBus",
+                            lib="InfiniteBusFromTable",
+                            par_file=str(self.par_file.name),
+                            par_id="IBus",
+                        ),
+                    ],
+                    connect=[
+                        Connect(
+                            id1=terminal,
+                            var1="generator_terminal",
+                            id2="IBus",
+                            var2="infiniteBus_terminal",
+                        ),
+                        Connect(
+                            id1=terminal,
+                            var1="generator_omegaRefPu_value",
+                            id2="IBus",
+                            var2="infiniteBus_omegaRefPu",
+                        ),
+                    ],
+                )
+                terminal_params = next(
+                    pset for pset in self.par.set if pset.id == terminal_bbm.par_id
+                )
+                for reference in terminal_params.reference:
+                    terminal_params.par.append(
+                        Parameter(
+                            name=reference.name,
+                            type_value=reference.type_value,
+                            value=terminal_init_values[reference.name],
+                        )
+                    )
+                terminal_params.reference = []
+                solver_params = next(
+                    pset for pset in self.par.set if pset.id == self.job.solver.par_id
+                )
+                rep.par = ParametersSet(
+                    set=[
+                        terminal_params,
+                        solver_params,
+                        Set(
+                            id="IBus",
+                            par=[
+                                Parameter(
+                                    name="infiniteBus_UPuTableName",
+                                    type_value="STRING",
+                                    value="UPu",
+                                ),
+                                Parameter(
+                                    name="infiniteBus_UPhaseTableName",
+                                    type_value="STRING",
+                                    value="UPhase",
+                                ),
+                                Parameter(
+                                    name="infiniteBus_OmegaRefPuTableName",
+                                    type_value="STRING",
+                                    value="OmegaRefPu",
+                                ),
+                                Parameter(
+                                    name="infiniteBus_TableFile",
+                                    type_value="STRING",
+                                    value=str(rep.base_folder / "ibus_table.txt"),
+                                ),
+                            ],
+                        ),
+                    ]
+                )
+                rep.job.simulation.precision = 1e-8
+                rep.job.modeler.network = None
+                rep.crv.curve = list(curves_)
+                rep.save()
+                rep.run()
+                curves_df = rep.read_output_curves()
                 curves_dfs.append(curves_df)
-        return pd.concat(curves_dfs)
+        combined_df = curves_dfs[0]
+        for df in curves_dfs[1:]:
+            combined_df = pd.merge(
+                combined_df, df, left_index=True, right_index=True, how="outer"
+            )
+        combined_df = combined_df.sort_index().interpolate()
+        return combined_df
 
-    def update_crv(self, curves: list[CurveInput]):
-        self.crv.curve = curves
-        self.save()
+    def generate_ibus_table(self, df, filename="ibus_table.txt"):
+        "Create the .txt file used to pass a TableFile for the InfiniteBus model"
+        U = np.hypot(
+            df["generator_terminal_V_re"], df["generator_terminal_V_im"]
+        ).rename("UPu")
+        U_phase = np.arctan2(
+            df["generator_terminal_V_im"], df["generator_terminal_V_re"]
+        ).rename("UPhase")
+        omega = df["generator_omegaRefPu_value"].rename("OmegaRefPu")
+        with open(self.base_folder / filename, "w") as f:
+            for i, s in enumerate((omega, U, U_phase)):
+                f.write(f"#{i + 1}\n")
+                f.write(f"\ndouble {s.name}({len(s)},2)\n")
+                for time, value in s.items():
+                    f.write(f"{time:.10f} {value:.10f}\n")
 
-    @contextmanager
-    def duplicate(self, path: Path | str | None = None, keep: bool = False):
+    def duplicate(self, path: Path | str | None = None):
         f"""
         Create a new folder copying all the files to work with an isolated simulation.
         If path is not provided, a new tmp folder will be created at {settings.TMP_DIR}.
-        The folder will be deleted on exit of the context manager if keep is False.
         """
         new_case_folder = path or tempfile.mkdtemp(dir=settings.TMP_DIR)
         new_case_folder = Path(new_case_folder)
-        shutil.copytree(self.base_folder, new_case_folder, dirs_exist_ok=True)
+        shutil.copytree(
+            self.base_folder,
+            new_case_folder,
+            ignore=shutil.ignore_patterns("reference", "outputs", "replay"),
+            dirs_exist_ok=True,
+        )
+        return Simulation(
+            new_case_folder / self.jobs_file.name, dynawo=self.dynawo_home
+        )
+
+    def delete(self):
+        "Delete the base folder of the case"
+        shutil.rmtree(self.base_folder)
+
+    @contextmanager
+    def replica(self, path: Path | str | None = None, keep: bool = False):
+        """
+        A context manager to work with an isolated replica of the case.
+        The folder will be deleted on exit of the context manager if keep is False.
+        """
+        dup = self.duplicate(path)
         try:
-            yield Simulation(
-                new_case_folder / self.jobs_file.name, dynawo=self.dynawo_home
-            )
+            yield dup
         finally:
             if not keep:
-                shutil.rmtree(new_case_folder)
+                dup.delete()
