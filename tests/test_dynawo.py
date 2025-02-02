@@ -2,7 +2,7 @@ import pytest
 
 from dynawo_replay.config import settings
 from dynawo_replay.schemas.curves_input import CurveInput
-from dynawo_replay.simulation import Simulation
+from dynawo_replay.simulation import Case
 
 
 @pytest.mark.parametrize(
@@ -10,14 +10,14 @@ from dynawo_replay.simulation import Simulation
 )
 def test_dynawo_examples(jobsfile):
     try:
-        with Simulation(jobsfile).replica() as case:
+        with Case(jobsfile).replica() as case:
             case.run()
     except NotImplementedError:
         pytest.xfail()
 
 
 def test_change_curves_to_output():
-    with Simulation("data/IEEE57_Fault/IEEE57.jobs").replica() as case:
+    with Case("data/IEEE57_Fault/IEEE57.jobs").replica() as case:
         new_curves = [
             CurveInput(model="GEN____6_SM", variable="generator_terminal_i_re"),
             CurveInput(model="GEN____6_SM", variable="generator_omegaRefPu_value"),
