@@ -5,11 +5,12 @@ app = marimo.App(width="medium")
 
 
 @app.cell
-def _():
+def _(mo):
     from dynawo_replay.simulation import Simulation
 
-    case = Simulation("data/tmp/IEEE14/IEEE14.jobs")
-    print(f"Using case at {case.base_folder}.")
+    # case = Simulation("data/tmp/IEEE14/IEEE14.jobs")
+    case = Simulation("data/tmp/IEEE57_Fault/IEEE57.jobs")
+    mo.md(f"Using case at {case.base_folder}.")
     return Simulation, case
 
 
@@ -84,17 +85,13 @@ def _(curve_to_plot_dropdown, original_df, replayed_df):
 
 
 @app.cell
-def _(curve_to_plot_dropdown, mo, original_df, replayed_df):
+def _(curve_to_plot_dropdown, original_df, replayed_df):
+    from dynawo_replay.metrics import compare_curves
+
     s1 = original_df[curve_to_plot_dropdown.value]
     s2 = replayed_df[curve_to_plot_dropdown.value]
-    s1 = s1[~s1.index.duplicated()]
-    s2 = s2[~s2.index.duplicated()]
-    _full_index = s1.index.union(s2.index)
-    s1 = s1.reindex(_full_index).interpolate()
-    s2 = s2.reindex(_full_index).interpolate()
-    mae = abs((s1 - s2)).mean()
-    mo.md(f"MAE: {mae:.2%}")
-    return mae, s1, s2
+    compare_curves(s1, s2)
+    return compare_curves, s1, s2
 
 
 @app.cell
