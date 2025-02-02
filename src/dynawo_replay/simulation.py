@@ -63,6 +63,10 @@ class Simulation:
 
     @property
     def crv_file(self):
+        if not self.job.outputs.curves:
+            raise NotImplementedError(
+                "Jobs with no output curves file not currently implemented."
+            )
         return self.base_folder / self.job.outputs.curves.input_file
 
     @property
