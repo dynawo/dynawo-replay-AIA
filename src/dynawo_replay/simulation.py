@@ -11,6 +11,7 @@ import pandas as pd
 
 from .config import settings
 from .exceptions import CaseNotPreparedForReplay, DynawoExecutionError
+from .metrics import drop_duplicated_index
 from .schemas.curves_input import CurveInput, CurvesInput
 from .schemas.ddb_desc import Model
 from .schemas.dyd import BlackBoxModel, Connect, DynamicModelsArchitecture
@@ -303,10 +304,14 @@ class Simulation:
                 rep.run()
                 curves_df = rep.read_output_curves()
                 curves_dfs.append(curves_df)
-        combined_df = curves_dfs[0]
+        combined_df = drop_duplicated_index(curves_dfs[0])
         for df in curves_dfs[1:]:
             combined_df = pd.merge(
-                combined_df, df, left_index=True, right_index=True, how="outer"
+                combined_df,
+                drop_duplicated_index(df),
+                left_index=True,
+                right_index=True,
+                how="outer",
             )
         combined_df = combined_df.sort_index().interpolate()
         return combined_df

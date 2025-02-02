@@ -11,12 +11,16 @@ class ComparisonMetrics(BaseModel):
     r2: float
 
 
+def drop_duplicated_index(s: pd.Series | pd.DataFrame):
+    return s.loc[~s.index.duplicated()]
+
+
 def align_to_common_index(s1: pd.Series, s2: pd.Series) -> tuple[pd.Series, pd.Series]:
     """
     Combines two pd.Series into a common index (union of indices) and interpolates missing values.
     """
-    s1 = s1[~s1.index.duplicated()]
-    s2 = s2[~s2.index.duplicated()]
+    s1 = drop_duplicated_index(s1)
+    s2 = drop_duplicated_index(s2)
     common_index = s1.index.union(s2.index)
     s1 = s1.reindex(common_index).interpolate()
     s2 = s2.reindex(common_index).interpolate()
