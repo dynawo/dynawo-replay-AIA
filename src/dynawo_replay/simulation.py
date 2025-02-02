@@ -34,6 +34,7 @@ class Simulation:
         self.jobs_file = Path(jobs_file).absolute()
         self.dynawo_home = dynawo
         self.base_folder = self.jobs_file.parent
+        self.name = self.base_folder.name
         jobs = parser.parse(jobs_file, Jobs)
         if len(jobs.job) != 1:
             raise NotImplementedError(
@@ -86,13 +87,9 @@ class Simulation:
         return self.base_folder / "replay" / "terminals"
 
     @property
-    def dynawo_executable(self):
-        return self.dynawo_home / "dynawo.sh"
-
-    @property
     def dynawo_version(self):
         return subprocess.run(
-            [self.dynawo_executable, "version"],
+            [self.dynawo_home / "dynawo.sh", "version"],
             capture_output=True,
             check=True,
             text=True,
@@ -102,7 +99,7 @@ class Simulation:
         "Execute Dynaωo simulation"
         try:
             subprocess.run(
-                [self.dynawo_executable, "jobs", self.jobs_file],
+                [self.dynawo_home / "dynawo.sh", "jobs", self.jobs_file],
                 capture_output=not verbose,
                 check=True,
                 text=True,
@@ -111,6 +108,14 @@ class Simulation:
             print(e.stdout)
             print(e.stderr)
             raise DynawoExecutionError() from e
+
+    def list_all_possible_curves(self):
+        curves = []
+        for node in self.get_terminal_nodes():
+            dyd_bbm = next(bbm for bbm in self.dyd.black_box_model if bbm.id == node)
+            for var in self.list_available_vars(dyd_bbm.lib):
+                curves.append(CurveInput(model=node, variable=var.name))
+        return curves
 
     def list_available_vars(self, model):
         model = parser.parse(self.dynawo_home / "ddb" / f"{model}.desc.xml", Model)
