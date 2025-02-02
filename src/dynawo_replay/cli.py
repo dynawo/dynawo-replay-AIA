@@ -1,5 +1,4 @@
 import datetime
-import os
 from pathlib import Path
 
 import typer
@@ -10,7 +9,6 @@ from .config import settings
 from .exceptions import CaseNotPreparedForReplay
 from .schemas.curves_input import CurveInput
 from .simulation import Simulation
-from .simulator import runner
 
 app = typer.Typer()
 
@@ -68,94 +66,3 @@ def replay(
         df.to_csv(output_file, sep=";")
     typer.echo(f"Succesfully replayed curves {curves} in {t.elapsed:.2}s.")
     typer.echo(f"Output stored in {output_file}.")
-
-
-@app.command()
-def pipeline_validation(jobs_path: str, output_dir: str, dynawo_path: str):
-    typer.echo(f"Running pipeline_validation {jobs_path}, {output_dir}, {dynawo_path}")
-    runner(
-        os.path.abspath(jobs_path),
-        os.path.abspath(output_dir) + "/",
-        os.path.abspath(dynawo_path),
-        None,
-        ["ALL"],
-        True,
-        True,
-        True,
-        True,
-        None,
-        None,
-    )
-
-
-@app.command()
-def case_preparation(jobs_path: str, output_dir: str, dynawo_path: str):
-    typer.echo(f"Running case_preparation {jobs_path}, {output_dir}, {dynawo_path}")
-    runner(
-        os.path.abspath(jobs_path),
-        os.path.abspath(output_dir) + "/",
-        os.path.abspath(dynawo_path),
-        None,
-        [],
-        True,
-        True,
-        True,
-        False,
-        None,
-        None,
-    )
-
-
-@app.command()
-def curves_creation(
-    jobs_path: str,
-    output_dir: str,
-    dynawo_path: str,
-    curves_file: str,
-    replay_generators: list[str] = ["ALL"],
-):
-    typer.echo(
-        f"Running curves_creation {jobs_path}, {output_dir}, {dynawo_path}, {curves_file}, {replay_generators}"
-    )
-    runner(
-        os.path.abspath(jobs_path),
-        os.path.abspath(output_dir) + "/",
-        os.path.abspath(dynawo_path),
-        os.path.abspath(curves_file),
-        replay_generators,
-        False,
-        False,
-        False,
-        True,
-        None,
-        None,
-    )
-
-
-@app.command()
-def get_value(
-    jobs_path: str,
-    output_dir: str,
-    dynawo_path: str,
-    curves_file: str,
-    replay_generator: str,
-    value_name: str,
-    time_get_value: str,
-):
-    typer.echo(
-        f"Running get_value {jobs_path}, {output_dir}, {dynawo_path}, "
-        f"{curves_file}, {replay_generator}, {value_name}, {time_get_value}"
-    )
-    runner(
-        os.path.abspath(jobs_path),
-        os.path.abspath(output_dir) + "/",
-        os.path.abspath(dynawo_path),
-        os.path.abspath(curves_file),
-        [replay_generator],
-        False,
-        False,
-        False,
-        True,
-        value_name,
-        float(time_get_value),
-    )
