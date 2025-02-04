@@ -6,12 +6,12 @@ app = marimo.App(width="medium")
 
 @app.cell
 def _(mo):
-    from dynawo_replay.simulation import Simulation
+    from dynawo_replay.simulation import Case
 
     # case = Simulation("data/tmp/IEEE14/IEEE14.jobs")
-    case = Simulation("data/tmp/IEEE57_Fault/IEEE57.jobs")
+    case = Case("data/tmp/IEEE57_Fault/IEEE57.jobs")
     mo.md(f"Using case at {case.base_folder}.")
-    return Simulation, case
+    return Case, case
 
 
 @app.cell(hide_code=True)
@@ -23,7 +23,9 @@ def _(case, mo):
         for var in case.list_available_vars(dyd_bbm.lib):
             curves_options.append(f"{_gen}::{var.name}")
 
-    curves_selection = mo.ui.multiselect(options=curves_options, full_width=True, value=curves_options[:1])
+    curves_selection = mo.ui.multiselect(
+        options=curves_options, full_width=True, value=curves_options[:1]
+    )
     return curves_options, curves_selection, dyd_bbm, generators, var
 
 
@@ -38,7 +40,7 @@ def _(curves_selection, mo):
         model, variable = _curve.split("::")
         selected_curves.append(CurveInput(model=model, variable=variable))
         curves_column_names.append(_curve.replace("::", "_"))
-        _curves_md += f'\n\n- {_curve}'
+        _curves_md += f"\n\n- {_curve}"
 
     mo.md(f"""
     Select the curves to test the replay:
@@ -64,7 +66,9 @@ def _(case, selected_curves):
 
 @app.cell(hide_code=True)
 def _(curves_column_names, mo):
-    curve_to_plot_dropdown = mo.ui.dropdown(options=curves_column_names, label="Curve to plot", value=curves_column_names[0])
+    curve_to_plot_dropdown = mo.ui.dropdown(
+        options=curves_column_names, label="Curve to plot", value=curves_column_names[0]
+    )
     curve_to_plot_dropdown
     return (curve_to_plot_dropdown,)
 
@@ -75,7 +79,9 @@ def _(curve_to_plot_dropdown, original_df, replayed_df):
 
     if curve_to_plot_dropdown.value:
         plot = original_df[curve_to_plot_dropdown.value].plot(label="original")
-        plot = replayed_df[curve_to_plot_dropdown.value].plot(label="replayed", linestyle="--")
+        plot = replayed_df[curve_to_plot_dropdown.value].plot(
+            label="replayed", linestyle="--"
+        )
         plt.legend()
     else:
         plot = "Choose a curve to plot in the dropdown above"
@@ -97,6 +103,7 @@ def _(curve_to_plot_dropdown, original_df, replayed_df):
 @app.cell
 def _():
     import marimo as mo
+
     return (mo,)
 
 

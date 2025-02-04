@@ -11,7 +11,7 @@ from .exceptions import DynawoExecutionError
 from .schemas.curves_input import CurvesInput
 from .schemas.dyd import DynamicModelsArchitecture
 from .schemas.io import parser, serializer
-from .schemas.jobs import Jobs
+from .schemas.jobs import CurvesEntry, Jobs
 from .schemas.parameters import ParametersSet
 
 
@@ -30,13 +30,13 @@ class Case:
         self.jobs_file = Path(jobs_file).absolute()
         self.dynawo_home = dynawo
         self.base_folder = self.jobs_file.parent
-        self.name = self.base_folder.name
         jobs = parser.parse(jobs_file, Jobs)
         if len(jobs.job) != 1:
             raise NotImplementedError(
                 "Only single-jobs simulations are currently supported"
             )
         self.job = jobs.job[0]
+        self.name = self.job.name
         self.dyd = parser.parse(self.dyd_file, DynamicModelsArchitecture)
         self.crv = parser.parse(self.crv_file, CurvesInput)
         self.par = parser.parse(self.par_file, ParametersSet)
@@ -59,8 +59,8 @@ class Case:
     @property
     def crv_file(self):
         if not self.job.outputs.curves:
-            raise NotImplementedError(
-                "Jobs with no output curves file not currently implemented."
+            self.job.outputs.curves = CurvesEntry(
+                input_file=self.jobs_file.with_suffix(".crv"), export_mode="CSV"
             )
         return self.base_folder / self.job.outputs.curves.input_file
 
@@ -101,9 +101,7 @@ class Case:
                 text=True,
             )
         except subprocess.CalledProcessError as e:
-            print(e.stdout)
-            print(e.stderr)
-            raise DynawoExecutionError() from e
+            raise DynawoExecutionError(e.stderr) from e
 
     def read_output_curves(self):
         "Read curves outputted from Dynaωo simulation as pandas dataframe"

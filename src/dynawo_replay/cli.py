@@ -15,7 +15,12 @@ app = typer.Typer()
 
 
 @app.command()
-def run(jobs_file: Path, dynawo: Path = settings.DYNAWO_HOME, keep_tmp: bool = False):
+def run(
+    jobs_file: Path,
+    dynawo: Path = settings.DYNAWO_HOME,
+    keep_tmp: bool = False,
+    force: bool = False,
+):
     """
     Executes a large-scale power grid simulation using Dynaωo,
     storing only the minimal data required to enable later reconstruction of curves.
@@ -23,7 +28,7 @@ def run(jobs_file: Path, dynawo: Path = settings.DYNAWO_HOME, keep_tmp: bool = F
     case = Case(jobs_file, dynawo)
     replay = Replay(case)
     output_folder = replay.replayable_base_folder
-    if output_folder.exists():
+    if output_folder.exists() and not force:
         continue_ = Confirm.ask(
             "Replay base folder for this case already exists and will be overwritten. "
             "Do you want to continue?"

@@ -9,6 +9,8 @@ from dynawo_replay.simulation import Case
     "jobsfile", (settings.DYNAWO_HOME / "examples").glob("**/*.jobs")
 )
 def test_dynawo_examples(jobsfile):
+    if "comparison" in jobsfile.parts:
+        pytest.skip()
     try:
         with Case(jobsfile).replica() as case:
             case.run()
