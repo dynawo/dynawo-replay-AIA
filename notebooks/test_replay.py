@@ -16,11 +16,13 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(case, mo):
+    from dynawo_replay.utils import list_available_vars
+
     curves_options = []
     generators = case.get_terminal_nodes()
     for _gen in generators:
         dyd_bbm = next(bbm for bbm in case.dyd.black_box_model if bbm.id == _gen)
-        for var in case.list_available_vars(dyd_bbm.lib):
+        for var in list_available_vars(dyd_bbm.lib, dynawo=case.dynawo_home):
             curves_options.append(f"{_gen}::{var.name}")
 
     curves_selection = mo.ui.multiselect(

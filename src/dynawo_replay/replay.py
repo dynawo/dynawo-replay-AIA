@@ -7,12 +7,11 @@ import pandas as pd
 from .exceptions import CaseNotPreparedForReplay
 from .metrics import drop_duplicated_index
 from .schemas.curves_input import CurveInput
-from .schemas.ddb_desc import Model
 from .schemas.dyd import BlackBoxModel, Connect, DynamicModelsArchitecture
-from .schemas.io import parser
 from .schemas.jobs import InitValuesEntry
 from .schemas.parameters import Parameter, ParametersSet, Set
 from .simulation import Case
+from .utils import list_available_vars
 
 
 class Replay:
@@ -35,13 +34,9 @@ class Replay:
         curves = []
         for node in self.get_terminal_nodes():
             dyd_bbm = next(bbm for bbm in self.dyd.black_box_model if bbm.id == node)
-            for var in self.list_available_vars(dyd_bbm.lib):
+            for var in list_available_vars(dyd_bbm.lib, dynawo=self.case.dynawo_home):
                 curves.append(CurveInput(model=node, variable=var.name))
         return curves
-
-    def list_available_vars(self, model):
-        model = parser.parse(self.case.dynawo_home / "ddb" / f"{model}.desc.xml", Model)
-        return model.elements.variables.variable
 
     def get_terminal_nodes(self):
         return [
@@ -60,16 +55,20 @@ class Replay:
 
     def filter_relevant_init_params(self, init_params):
         "Retrieve only init params that are actually tied to a terminal node reference"
-        relevant_params = {}
+        _params = {}
         for terminal in self.get_terminal_nodes():
             dyd_bbm = next(
                 bbm for bbm in self.case.dyd.black_box_model if bbm.id == terminal
             )
             pset = next(pset for pset in self.case.par.set if pset.id == dyd_bbm.par_id)
-            relevant_params[terminal] = {
-                ref.name: init_params[terminal][ref.name] for ref in pset.reference
-            }
-        return relevant_params
+            _params[terminal] = {}
+            for ref in pset.reference:
+                try:
+                    _params[terminal][ref.name] = init_params[terminal][ref.name]
+                except KeyError:
+                    # raise UnresolvedReference()
+                    _params[terminal][ref.name] = 0
+        return _params
 
     def generate_replayable_base(self, keep_tmp=False, save=False):
         """
