@@ -33,7 +33,9 @@ class Replay:
     def list_all_possible_curves(self):
         curves = []
         for node in self.get_terminal_nodes():
-            dyd_bbm = next(bbm for bbm in self.dyd.black_box_model if bbm.id == node)
+            dyd_bbm = next(
+                bbm for bbm in self.case.dyd.black_box_model if bbm.id == node
+            )
             for var in list_available_vars(dyd_bbm.lib, dynawo=self.case.dynawo_home):
                 curves.append(CurveInput(model=node, variable=var.name))
         return curves
