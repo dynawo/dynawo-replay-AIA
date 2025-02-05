@@ -4,3 +4,7 @@ class DynawoExecutionError(Exception):
 
 class CaseNotPreparedForReplay(Exception):
     pass
+
+
+class NotStabilizedCurve(Exception):
+    pass
