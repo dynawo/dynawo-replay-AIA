@@ -1,12 +1,14 @@
+from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
-from pydantic import BaseModel
 from sklearn.metrics import r2_score
 
 from .exceptions import NotStabilizedCurve
 
 
-class ComparisonMetrics(BaseModel):
+@dataclass
+class ComparisonMetrics:
     ptp_diff: float
     ss_value_diff: float
     ss_time_diff: float
@@ -71,6 +73,8 @@ def compare_curves(s1: pd.Series, s2: pd.Series) -> ComparisonMetrics:
         ss_value_diff = abs(ss_value1 - ss_value2)
         ss_time_diff = abs(ss_time1 - ss_time2)
     except NotStabilizedCurve:
+        ss_value1, ss_time1 = np.nan, np.nan
+        ss_value2, ss_time2 = np.nan, np.nan
         ss_value_diff = np.nan
         ss_time_diff = np.nan
     return ComparisonMetrics(
