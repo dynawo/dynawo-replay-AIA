@@ -4,18 +4,22 @@ from dynawo_replay.config import settings
 from dynawo_replay.schemas.curves_input import CurveInput
 from dynawo_replay.simulation import Case
 
+DYNAWO_EXAMPLES_FOLDER = settings.DYNAWO_HOME / "examples"
+
 
 @pytest.mark.parametrize(
-    "jobsfile", (settings.DYNAWO_HOME / "examples").glob("**/*.jobs")
+    "jobsfile",
+    DYNAWO_EXAMPLES_FOLDER.glob("**/*.jobs"),
+    ids=lambda jobsfile: str(jobsfile.relative_to(DYNAWO_EXAMPLES_FOLDER)),
 )
 def test_dynawo_examples(jobsfile):
     if "comparison" in jobsfile.parts:
-        pytest.skip()
+        pytest.skip("Bad formatted case")
     try:
         with Case(jobsfile).replica() as case:
             case.run()
     except NotImplementedError:
-        pytest.xfail()
+        pytest.xfail("Not implemented")
 
 
 def test_change_curves_to_output():
