@@ -122,3 +122,51 @@ class Model:
             "type": "Element",
         },
     )
+
+
+@dataclass
+class ExternalVariable:
+    id: str = field(
+        default=None,
+        metadata={
+            "name": "id",
+            "type": "Attribute",
+        },
+    )
+    type: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+        },
+    )
+    optional: Optional[bool] = field(
+        default=False,
+        metadata={
+            "name": "optional",
+            "type": "Attribute",
+        },
+    )
+    default_value: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "defaultValue",
+            "type": "Attribute",
+        },
+    )
+
+
+@dataclass
+class ExternalVariables:
+    class Meta:
+        name = "external_variables"
+        namespace = "http://www.rte-france.com/dynawo"
+
+    variable: list[ExternalVariable] = field(
+        default_factory=list,
+        metadata={
+            "name": "variable",
+            "type": "Element",
+            "namespace": "http://www.rte-france.com/dynawo",
+        },
+    )

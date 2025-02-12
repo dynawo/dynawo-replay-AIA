@@ -5,13 +5,13 @@ from .exceptions import (
     NotStabilizedCurve,
 )
 from .metrics import compare_curves
-from .replay import Replay
+from .replay import ReplayableCase
 from .simulation import Case
 from .utils import list_available_vars
 
 __all__ = [
     "Case",
-    "Replay",
+    "ReplayableCase",
     "settings",
     "CaseNotPreparedForReplay",
     "DynawoExecutionError",

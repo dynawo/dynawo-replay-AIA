@@ -18,14 +18,6 @@ from .schemas.parameters import ParametersSet
 class Case:
     """Interface to interact with Dynaωo simulations"""
 
-    TERMINAL_VARIABLES = [
-        "generator_terminal_V_im",
-        "generator_terminal_V_re",
-        "generator_terminal_i_im",
-        "generator_terminal_i_re",
-        "generator_omegaRefPu_value",
-    ]
-
     def __init__(self, jobs_file: str, dynawo: str = settings.DYNAWO_HOME):
         self.jobs_file = Path(jobs_file).absolute()
         self.dynawo_home = dynawo
@@ -40,6 +32,8 @@ class Case:
         self.dyd = parser.parse(self.dyd_file, DynamicModelsArchitecture)
         self.crv = parser.parse(self.crv_file, CurvesInput)
         self.par = parser.parse(self.par_file, ParametersSet)
+        self.par_dict = {pset.id: pset for pset in self.par.set}
+        self.bbm_dict = {bbm.id: bbm for bbm in self.dyd.black_box_model}
 
     def save(self):
         with self.jobs_file.open("w") as f:
@@ -144,7 +138,9 @@ class Case:
             ignore=shutil.ignore_patterns("reference", "outputs", "replay"),
             dirs_exist_ok=True,
         )
-        return Case(new_case_folder / self.jobs_file.name, dynawo=self.dynawo_home)
+        return self.__class__(
+            new_case_folder / self.jobs_file.name, dynawo=self.dynawo_home
+        )
 
     def delete(self):
         "Delete the base folder of the case"

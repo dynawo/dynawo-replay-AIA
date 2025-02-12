@@ -5,6 +5,7 @@ import pandas as pd
 from sklearn.metrics import r2_score
 
 from .exceptions import NotStabilizedCurve
+from .utils import drop_duplicated_index
 
 
 @dataclass
@@ -18,10 +19,6 @@ class ComparisonMetrics:
     rmse: float
     nrmse: float
     mae: float
-
-
-def drop_duplicated_index(s: pd.Series | pd.DataFrame):
-    return s.loc[~s.index.duplicated()]
 
 
 def align_to_common_index(s1: pd.Series, s2: pd.Series) -> tuple[pd.Series, pd.Series]:

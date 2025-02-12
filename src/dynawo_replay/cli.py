@@ -7,9 +7,8 @@ from rich.prompt import Confirm
 
 from .config import settings
 from .exceptions import CaseNotPreparedForReplay
-from .replay import Replay
+from .replay import ReplayableCase
 from .schemas.curves_input import CurveInput
-from .simulation import Case
 
 app = typer.Typer()
 
@@ -25,9 +24,8 @@ def run(
     Executes a large-scale power grid simulation using Dynaωo,
     storing only the minimal data required to enable later reconstruction of curves.
     """
-    case = Case(jobs_file, dynawo)
-    replay = Replay(case)
-    output_folder = replay.replayable_base_folder
+    case = ReplayableCase(jobs_file, dynawo)
+    output_folder = case.replayable_base_folder
     if output_folder.exists() and not force:
         continue_ = Confirm.ask(
             "Replay base folder for this case already exists and will be overwritten. "
@@ -36,7 +34,7 @@ def run(
         if not continue_:
             return
     with Timer() as t:
-        replay.generate_replayable_base(keep_tmp=keep_tmp, save=True)
+        case.generate_replayable_base(keep_tmp=keep_tmp, save=True)
     typer.echo(f"Succesfully executed job «{case.name}» in {t.elapsed:.2}s.")
     typer.echo(f"Global output stored in {output_folder}.")
 
@@ -58,10 +56,9 @@ def replay(
         model, variable = curve_str.split("::")
         parsed_curves.append(CurveInput(model=model, variable=variable))
     with Timer() as t:
-        case = Case(jobs_file, dynawo)
-        replay = Replay(case)
+        case = ReplayableCase(jobs_file, dynawo)
         try:
-            df = replay.replay(parsed_curves, keep_tmp=keep_tmp)
+            df = case.replay(parsed_curves, keep_tmp=keep_tmp)
         except CaseNotPreparedForReplay:
             raise RuntimeError(
                 "Case not prepared for replay. Execute ```run``` command first."
