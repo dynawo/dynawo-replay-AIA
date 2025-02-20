@@ -15,6 +15,15 @@ def drop_duplicated_index(s: pd.Series | pd.DataFrame):
     return s.loc[~s.index.duplicated()]
 
 
+def reduce_curve(s: pd.Series):
+    "Returns a reduced equivalent (by interpolation) version of the series"
+    s = drop_duplicated_index(s)
+    s_prima = s.diff() / s.index.to_series().diff()
+    mask = (s_prima.diff() == 0) & (s_prima.diff(-1) == 0)
+    s = s.loc[~mask]
+    return s
+
+
 def combine_dataframes(dfs: list[pd.DataFrame]):
     "Combines many dataframe into one, interpolating missing values"
     combined_df = drop_duplicated_index(dfs[0])

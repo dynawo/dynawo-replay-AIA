@@ -16,6 +16,7 @@ from .utils import (
     combine_dataframes,
     infer_connection_vars,
     list_available_vars,
+    reduce_curve,
     solve_references,
 )
 
@@ -101,7 +102,7 @@ class ReplayableCase(Case):
         curves_dfs = []
         for element_id, curves_ in groupby(curves, key=lambda x: x.model):
             element = self.replayable_elements[element_id]
-            curves_dfs.append(element.replay(list(curves_)))
+            curves_dfs.append(element.replay(list(curves_), keep_tmp=keep_tmp))
         return combine_dataframes(curves_dfs)
 
     def calculate_reference_curves(self, curves: list[CurveInput], keep_tmp=False):
@@ -229,9 +230,11 @@ class ReplayableElement:
 
     def write_ibus_table(self, df, filename="ibus_table.txt"):
         "Create the .txt file used to pass a TableFile for the InfiniteBus model"
-        U = np.hypot(df[self.v_re], df[self.v_im]).rename("UPu")
-        U_phase = np.arctan2(df[self.v_im], df[self.v_re]).rename("UPhase")
-        omega = df[self.omega_ref].rename("OmegaRefPu")
+        U = reduce_curve(np.hypot(df[self.v_re], df[self.v_im]).rename("UPu"))
+        U_phase = reduce_curve(
+            np.arctan2(df[self.v_im], df[self.v_re]).rename("UPhase")
+        )
+        omega = reduce_curve(df[self.omega_ref].rename("OmegaRefPu"))
         with open(filename, "w") as f:
             for i, s in enumerate((omega, U, U_phase)):
                 f.write(f"#{i + 1}\n")

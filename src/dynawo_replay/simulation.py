@@ -85,7 +85,7 @@ class Case:
             text=True,
         ).stdout
 
-    def run(self, verbose=False):
+    def run(self, verbose=False, timeout=600):
         "Execute Dynaωo simulation"
         try:
             subprocess.run(
@@ -93,7 +93,10 @@ class Case:
                 capture_output=not verbose,
                 check=True,
                 text=True,
+                timeout=timeout,
             )
+        except subprocess.TimeoutExpired:
+            raise DynawoExecutionError("timeout")
         except subprocess.CalledProcessError as e:
             raise DynawoExecutionError(e.stderr) from e
 
@@ -122,7 +125,7 @@ class Case:
                         break
                     else:
                         name, value = line.split("=")
-                        _init_params[model_name][name.strip()] = float(value)
+                        _init_params[model_name][name.strip()] = value.strip()
         return _init_params
 
     def duplicate(self, path: Path | str | None = None):
