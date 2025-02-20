@@ -35,37 +35,21 @@ def test_replay_pipeline():
     ids=lambda jobsfile: str(jobsfile.relative_to(DYNAWO_EXAMPLES_FOLDER)),
 )
 def test_replay_on_examples(jobsfile, random_seed=42, n_curves=1, tolerance=1):
-    if "DynaFlow" in jobsfile.parts:
-        pytest.skip("Skipping DynaFlow examples")
     try:
         with ReplayableCase(jobsfile).replica() as case:
-            if case.name in (
-                # No generators found
-                # "WECCWTG4A",
-                # "WECCWTG4B",
-                # "WECCPVVSource",
-                # "WECCPV",
-                # "WPP4ACurrentSource",
-                # "WT4ACurrentSource",
-                # "WPP4BCurrentSource",
-                # "WT4BCurrentSource",
-                # variables number 73 not equals to the equations number 74
-                # "Test Case 2 - Active power variation on the load",
-                # time step <= 1e-06 s for more than 10 iterations
-                "IEEE14 - Fault",
-            ):
-                pytest.skip("Manually skipped")
-            case.generate_replayable_base(save=True)
-            random.seed(random_seed)
             all_possible_curves = [
                 CurveInput(model=el.id, variable=v.name)
                 for el in case.replayable_elements.values()
                 for v in el.replayable_variables
             ]
-            curves = random.sample(all_possible_curves, n_curves)
-            original_df = case.calculate_reference_curves(curves)
-            replayed_df = case.replay(curves)
-            for curve in curves:
+            if not all_possible_curves:
+                pytest.skip("No replayable elements")
+            random.seed(random_seed)
+            curves_to_replay = random.sample(all_possible_curves, n_curves)
+            case.generate_replayable_base(save=True)
+            original_df = case.calculate_reference_curves(curves_to_replay)
+            replayed_df = case.replay(curves_to_replay)
+            for curve in curves_to_replay:
                 column = f"{curve.model}_{curve.variable}"
                 metrics = compare_curves(original_df[column], replayed_df[column])
                 if not np.isnan(metrics.ptp_diff_rel):
