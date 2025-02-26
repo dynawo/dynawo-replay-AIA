@@ -27,9 +27,11 @@ plotting = [
 
 [dependency-groups]
 dev = [
+    "altair>=5.5.0",
     "ipykernel>=6.29.5",
     "ipython>=8.31.0",
     "marimo>=0.10.17",
+    "openai>=1.64.0",
     "plotly>=6.0.0",
     "polars>=1.22.0",
     "pyarrow>=19.0.0",
