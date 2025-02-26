@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.10.17"
+__generated_with = "0.11.7"
 app = marimo.App(width="medium")
 
 
@@ -8,9 +8,8 @@ app = marimo.App(width="medium")
 def _(mo):
     from dynawo_replay import ReplayableCase
 
-    # case = ReplayableCase("data/tmp/IEEE14/IEEE14.jobs")
-    # case = ReplayableCase("data/tmp/IEEE57_Fault/IEEE57.jobs")
-    case = ReplayableCase("data/tmp/TestCase2/TestCase2.jobs")
+    case = ReplayableCase("data/tmp/IEEE57_GeneratorDisconnection/IEEE57.jobs")
+    # case = ReplayableCase("data/tmp/TestCase2/TestCase2.jobs")
     mo.md(f"Using case at {case.base_folder}.")
     return ReplayableCase, case
 
@@ -18,7 +17,9 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(case, mo):
     curves_options = [
-        f"{el.id}::{v.name}" for el in case.replayable_elements.values() for v in el.replayable_variables
+        f"{el.id}::{v.name}"
+        for el in case.replayable_elements.values()
+        for v in el.replayable_variables
     ]
     curves_selection = mo.ui.multiselect(
         options=curves_options, full_width=True, value=curves_options[:1]
@@ -84,19 +85,21 @@ def _(curve_to_plot_dropdown, original_df, replayed_df):
 
 
 @app.cell
-def _(curve_to_plot_dropdown, original_df, replayed_df):
+def _(curve_to_plot_dropdown, mo, original_df, replayed_df):
     from dynawo_replay.metrics import compare_curves
 
-    compare_curves(
+    metrics = compare_curves(
         original_df[curve_to_plot_dropdown.value],
         replayed_df[curve_to_plot_dropdown.value],
     )
-    return (compare_curves,)
+    mo.ui.table(data=[metrics.__dict__])
+    return compare_curves, metrics
 
 
 @app.cell
 def _():
     import marimo as mo
+
     return (mo,)
 
 
