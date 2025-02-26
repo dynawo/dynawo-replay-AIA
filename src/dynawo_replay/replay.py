@@ -175,10 +175,30 @@ class ReplayableElement:
                     ),
                 ],
             )
+            _case.job.solver.lib = "dynawo_SolverIDA"
+            solver_params = Set(
+                id=_case.job.solver.par_id,
+                par=[
+                    Parameter(name="order", type_value="INT", value="2"),
+                    Parameter(name="initStep", type_value="DOUBLE", value="1e-9"),
+                    Parameter(name="minStep", type_value="DOUBLE", value="1e-9"),
+                    Parameter(name="maxStep", type_value="DOUBLE", value="1"),
+                    Parameter(name="absAccuracy", type_value="DOUBLE", value="1e-6"),
+                    Parameter(name="relAccuracy", type_value="DOUBLE", value="1e-6"),
+                    Parameter(
+                        name="minimalAcceptableStep", type_value="DOUBLE", value="1e-10"
+                    ),
+                    Parameter(
+                        name="maximumNumberSlowStepIncrease",
+                        type_value="INT",
+                        value="40",
+                    ),
+                ],
+            )
             _case.par = ParametersSet(
                 set=[
                     solve_references(_case.par_dict[self.bbm.par_id], init_values),
-                    _case.par_dict[_case.job.solver.par_id],
+                    solver_params,
                     Set(
                         id="IBus",
                         par=[
@@ -206,7 +226,7 @@ class ReplayableElement:
                     ),
                 ]
             )
-            _case.job.simulation.precision = 1e-8
+            _case.job.simulation.precision = 1e-10
             _case.job.modeler.network = None
             _case.crv.curve = curves
             _case.save()
