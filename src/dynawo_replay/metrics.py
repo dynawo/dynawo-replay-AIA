@@ -10,8 +10,14 @@ from .utils import drop_duplicated_index
 
 @dataclass
 class ComparisonMetrics:
+    ptp_ref: float
+    ptp_rep: float
     ptp_diff: float
+    ss_value_ref: float
+    ss_value_rep: float
     ss_value_diff: float
+    ss_time_ref: float
+    ss_time_rep: float
     ss_time_diff: float
     ptp_diff_rel: float
     ss_value_diff_rel: float
@@ -52,6 +58,8 @@ def get_stabilization_metrics(s: pd.Series, min_steady_interval=5, steady_tol=0.
     if not last_interval.between(ss_lower_bound, ss_upper_bound).all():
         raise NotStabilizedCurve()
     stabilization_time = s[~s.between(ss_lower_bound, ss_upper_bound)].index.max()
+    if np.isnan(stabilization_time):
+        stabilization_time = s.index.min()
     return steady_state_value, stabilization_time
 
 
@@ -75,8 +83,14 @@ def compare_curves(s1: pd.Series, s2: pd.Series) -> ComparisonMetrics:
         ss_value_diff = np.nan
         ss_time_diff = np.nan
     return ComparisonMetrics(
+        ptp_ref=ptp1,
+        ptp_rep=ptp2,
         ptp_diff=ptp_diff,
+        ss_value_ref=ss_value1,
+        ss_value_rep=ss_value2,
         ss_value_diff=ss_value_diff,
+        ss_time_ref=ss_time1,
+        ss_time_rep=ss_time2,
         ss_time_diff=ss_time_diff,
         ptp_diff_rel=ptp_diff / ptp1 if ptp1 else np.nan,
         ss_value_diff_rel=ss_value_diff / ss_value1 if ss_value1 else np.nan,

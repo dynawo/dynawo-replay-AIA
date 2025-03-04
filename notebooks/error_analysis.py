@@ -6,7 +6,6 @@ app = marimo.App(width="medium", app_title="Error Analysis")
 
 @app.cell(hide_code=True)
 def _():
-    import altair as alt
     import marimo as mo
     import matplotlib.pyplot as plt
     import numpy as np
@@ -22,7 +21,6 @@ def _():
     return (
         CurveInput,
         ReplayableCase,
-        alt,
         compare_curves,
         go,
         make_subplots,
@@ -39,7 +37,8 @@ def _():
 def _(ReplayableCase, mo):
     # case = ReplayableCase("data/tmp/IEEE57_GeneratorDisconnection/IEEE57.jobs")
     # case = ReplayableCase("data/tmp/WSCC9_Fault/WSCC9.jobs")
-    case = ReplayableCase("data/tmp/IEEE57_Fault/IEEE57.jobs")
+    case = ReplayableCase("data/tmp/IEEE118_NodeFault/IEEE118.jobs")
+    # case = ReplayableCase("data/tmp/IEEE57_GeneratorDisconnection/IEEE57.jobs")
     mo.md(f"Using case at {case.base_folder}.")
     return (case,)
 
@@ -51,6 +50,15 @@ def _(CurveInput, case, mo):
         for el in case.replayable_elements.values()
         for v in el.replayable_variables
     ]
+    selected_curves = [
+        c
+        for c in selected_curves
+        if "V_re" in c.variable
+        or "V_im" in c.variable
+        or "PGen" in c.variable
+        or "QGen" in c.variable
+    ][:15]
+    # selected_curves = selected_curves[:3]
     mo.md(f"Total number of curves to evaluate {len(selected_curves)}.")
     return (selected_curves,)
 
@@ -124,7 +132,7 @@ def _(metrics_df, plot_curves_comparison):
 
 @app.cell
 def _(metrics_df, plot_curves_comparison):
-    _column = "ss_value_diff_rel"
+    _column = "ss_value_diff"
     _max_ptp_curve = metrics_df.loc[metrics_df[_column].idxmax(), "name"]
     _fig = plot_curves_comparison(_max_ptp_curve)
     _fig.update_layout(title_text=f"Maximum {_column}")
@@ -168,8 +176,14 @@ def _(compare_curves, go, make_subplots, reference_df, replayed_df):
     def plot_curves_comparison(
         curve_name: str,
         show_metrics: list[str] = [
+            "ptp_ref",
+            "ptp_rep",
             "ptp_diff",
+            "ss_value_ref",
+            "ss_value_rep",
             "ss_value_diff",
+            "ss_time_ref",
+            "ss_time_rep",
             "ss_time_diff",
             "ptp_diff_rel",
             "ss_value_diff_rel",
@@ -210,7 +224,7 @@ def _(compare_curves, go, make_subplots, reference_df, replayed_df):
                 x=replayed_df.index,
                 y=replayed_df[curve_name],
                 mode="lines",
-                line=dict(dash="dash"),
+                line=dict(dash="dot"),
                 name="Replayed",
             ),
             row=1,

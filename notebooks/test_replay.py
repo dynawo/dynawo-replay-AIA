@@ -8,13 +8,14 @@ app = marimo.App(width="medium")
 def _(mo):
     from dynawo_replay import ReplayableCase
 
+    # case = ReplayableCase("data/tmp/Nordic/Nordic.jobs")
     case = ReplayableCase("data/tmp/IEEE57_GeneratorDisconnection/IEEE57.jobs")
     # case = ReplayableCase("data/tmp/TestCase2/TestCase2.jobs")
     mo.md(f"Using case at {case.base_folder}.")
     return ReplayableCase, case
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(case, mo):
     curves_options = [
         f"{el.id}::{v.name}"
@@ -27,7 +28,7 @@ def _(case, mo):
     return curves_options, curves_selection
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(curves_selection, mo):
     from dynawo_replay.schemas.curves_input import CurveInput
 
@@ -51,14 +52,13 @@ def _(curves_selection, mo):
 
 @app.cell
 def _(case, selected_curves):
-    with case.replica() as _replica:
-        _replica.generate_replayable_base(save=True)
-        original_df = _replica.calculate_reference_curves(selected_curves)
-        replayed_df = _replica.replay(selected_curves)
+    case.generate_replayable_base(save=True)
+    original_df = case.calculate_reference_curves(selected_curves)
+    replayed_df = case.replay(selected_curves, keep_tmp=True)
     return original_df, replayed_df
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(curves_column_names, mo):
     curve_to_plot_dropdown = mo.ui.dropdown(
         options=curves_column_names, label="Curve to plot", value=curves_column_names[0]
@@ -99,7 +99,6 @@ def _(curve_to_plot_dropdown, mo, original_df, replayed_df):
 @app.cell
 def _():
     import marimo as mo
-
     return (mo,)
 
 
