@@ -158,6 +158,9 @@ class Case:
         dup = self.duplicate(path)
         try:
             yield dup
+        except Exception:
+            keep = True
+            raise
         finally:
             if not keep:
                 dup.delete()
