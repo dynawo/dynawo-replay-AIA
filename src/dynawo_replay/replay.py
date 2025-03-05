@@ -98,6 +98,7 @@ class ReplayableCase(Case):
         base_template = Case(PACKAGE_DIR / "templates" / "replay_base" / "replay.jobs")
         template = base_template.duplicate(self.replay_template_folder)
         template.job.simulation = self.job.simulation
+        template.job.simulation.precision = "1e-10"
         if keep_original_solver:
             template.job.solver.lib = self.job.solver.lib
             template.par_dict["Solver"][:] = self.par_dict[self.job.solver.par_id]
