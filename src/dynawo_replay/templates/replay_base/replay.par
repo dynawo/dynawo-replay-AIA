@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dyn:parametersSet xmlns:dyn="http://www.rte-france.com/dynawo" xmlns:iidm="http://www.itesla_project.eu/schema/iidm/1_0">
+    <dyn:set id="ReplayableElement">
+    </dyn:set>
+    <dyn:set id="Solver">
+        <dyn:par type="INT" name="order" value="2"/>
+        <dyn:par type="DOUBLE" name="initStep" value="1e-9"/>
+        <dyn:par type="DOUBLE" name="minStep" value="1e-9"/>
+        <dyn:par type="DOUBLE" name="maxStep" value="1"/>
+        <dyn:par type="DOUBLE" name="absAccuracy" value="1e-3"/>
+        <dyn:par type="DOUBLE" name="relAccuracy" value="1e-3"/>
+        <dyn:par type="DOUBLE" name="minimalAcceptableStep" value="1e-10"/>
+        <dyn:par type="INT" name="maximumNumberSlowStepIncrease" value="40"/>
+    </dyn:set>
+    <dyn:set id="IBus">
+        <dyn:par type="STRING" name="infiniteBus_UPuTableName" value="UPu"/>
+        <dyn:par type="STRING" name="infiniteBus_UPhaseTableName" value="UPhase"/>
+        <dyn:par type="STRING" name="infiniteBus_OmegaRefPuTableName" value="OmegaRefPu"/>
+        <dyn:par type="STRING" name="infiniteBus_TableFile" value="./ibus_table.txt"/>
+    </dyn:set>
+</dyn:parametersSet>

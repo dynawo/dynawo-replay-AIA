@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dyn:jobs xmlns:dyn="http://www.rte-france.com/dynawo" xmlns:iidm="http://www.itesla_project.eu/schema/iidm/1_0">
+    <dyn:job name="Local Replay">
+        <dyn:solver lib="dynawo_SolverIDA" parFile="replay.par" parId="Solver"/>
+        <dyn:modeler compileDir="outputs/compilation">
+            <dyn:dynModels dydFile="replay.dyd"/>
+            <dyn:precompiledModels useStandardModels="true"/>
+            <dyn:modelicaModels useStandardModels="true"/>
+        </dyn:modeler>
+        <dyn:simulation startTime="0.0" stopTime="10.0" precision="1E-10"/>
+        <dyn:outputs directory="outputs">
+            <dyn:curves inputFile="replay.crv" exportMode="CSV"/>
+            <dyn:logs>
+                <dyn:appender file="dynawo.log" tag="" lvlFilter="INFO"/>
+            </dyn:logs>
+        </dyn:outputs>
+    </dyn:job>
+</dyn:jobs>

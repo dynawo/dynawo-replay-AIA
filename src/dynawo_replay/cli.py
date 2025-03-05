@@ -25,7 +25,7 @@ def run(
     storing only the minimal data required to enable later reconstruction of curves.
     """
     case = ReplayableCase(jobs_file, dynawo)
-    output_folder = case.replayable_base_folder
+    output_folder = case.replay_core_folder
     if output_folder.exists() and not force:
         continue_ = Confirm.ask(
             "Replay base folder for this case already exists and will be overwritten. "
@@ -66,7 +66,8 @@ def replay(
         output_file = (
             case.base_folder
             / "replay"
-            / f"replay_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv"
+            / "outputs"
+            / f"{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv"
         )
         df.to_csv(output_file, sep=";")
     typer.echo(f"Succesfully replayed curves {curves} in {t.elapsed:.2}s.")

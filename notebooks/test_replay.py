@@ -9,6 +9,7 @@ def _(mo):
     from dynawo_replay import ReplayableCase
 
     # case = ReplayableCase("data/tmp/Nordic/Nordic.jobs")
+    # case = ReplayableCase("data/tmp/IEEE118_NodeFault/IEEE118.jobs")
     case = ReplayableCase("data/tmp/IEEE57_GeneratorDisconnection/IEEE57.jobs")
     # case = ReplayableCase("data/tmp/TestCase2/TestCase2.jobs")
     mo.md(f"Using case at {case.base_folder}.")
@@ -52,7 +53,7 @@ def _(curves_selection, mo):
 
 @app.cell
 def _(case, selected_curves):
-    case.generate_replayable_base(save=True)
+    case.generate_replayable_base()
     original_df = case.calculate_reference_curves(selected_curves)
     replayed_df = case.replay(selected_curves, keep_tmp=True)
     return original_df, replayed_df

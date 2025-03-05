@@ -20,7 +20,7 @@ def test_replay_pipeline():
         CurveInput(model="GEN____3_SM", variable="generator_cePu"),
     ]
     with ReplayableCase(jobsfile, dynawo=dynawo).replica() as case:
-        case.generate_replayable_base(save=True)
+        case.generate_replayable_base()
         original_df = case.calculate_reference_curves(curves)
         replayed_df = case.replay(curves)
         for curve in curves:
@@ -46,7 +46,7 @@ def test_replay_on_examples(jobsfile, random_seed=42, n_curves=1, tolerance=1):
                 pytest.skip("No replayable elements")
             random.seed(random_seed)
             curves_to_replay = random.sample(all_possible_curves, n_curves)
-            case.generate_replayable_base(save=True)
+            case.generate_replayable_base()
             original_df = case.calculate_reference_curves(curves_to_replay)
             replayed_df = case.replay(curves_to_replay)
             for curve in curves_to_replay:

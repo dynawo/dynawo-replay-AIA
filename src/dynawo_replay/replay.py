@@ -1,16 +1,14 @@
 import json
-from dataclasses import replace
 from functools import cached_property
 from itertools import groupby
 
 import numpy as np
 import pandas as pd
 
+from .config import PACKAGE_DIR
 from .exceptions import CaseNotPreparedForReplay, UnresolvedReference
 from .schemas.curves_input import CurveInput
-from .schemas.dyd import BlackBoxModel, Connect, DynamicModelsArchitecture
 from .schemas.jobs import InitValuesEntry
-from .schemas.parameters import Parameter, ParametersSet, Set
 from .simulation import Case
 from .utils import (
     combine_dataframes,
@@ -23,8 +21,19 @@ from .utils import (
 
 class ReplayableCase(Case):
     @cached_property
-    def replayable_base_folder(self):
-        return self.base_folder / "replay" / "terminals"
+    def replay_core_folder(self):
+        return self.base_folder / "replay" / "_core"
+
+    @cached_property
+    def replay_template_folder(self):
+        return self.base_folder / "replay" / "_template"
+
+    @cached_property
+    def replay_template_case(self):
+        return Case(
+            self.replay_template_folder / "replay.jobs",
+            dynawo=self.dynawo_home,
+        )
 
     @cached_property
     def replayable_elements(self):
@@ -48,7 +57,6 @@ class ReplayableCase(Case):
         self,
         elements: list[str] = [],
         keep_tmp: bool = False,
-        save: bool = False,
     ):
         """
         Run the complete network simulation and generate the data necessary for later replay.
@@ -56,7 +64,8 @@ class ReplayableCase(Case):
         the minimal curves for each terminal node in the network.
         We also make sure to dump init values and store the relevant references.
         The replica is deleted after the simulation is done if keep_tmp=False.
-        The results are saved in self.replayable_base_folder, one file for each terminal node.
+        The results are saved in self.replay_core_folder, one file for each terminal node.
+        This will also create the base template for local replay.
         """
         if not elements:
             _elements = self.replayable_elements.values()
@@ -71,21 +80,28 @@ class ReplayableCase(Case):
             rep.run()
             curves_df = rep.read_output_curves()
             init_params = rep.read_init_params()
-        if save:
-            output_folder = self.replayable_base_folder
-            output_folder.mkdir(parents=True, exist_ok=True)
-            for el in _elements:
-                _df = curves_df[[f"{el.id}_{c.variable}" for c in el.get_base_curves()]]
-                _df.columns = _df.columns.str.removeprefix(el.id + "_")
-                _df.to_parquet(
-                    output_folder / f"{el.id}.parquet",
-                    engine="pyarrow",
-                    compression="snappy",
-                )
-                _init_params = el.filter_relevant_init_params(init_params[el.id])
-                with (output_folder / f"{el.id}_initValues.json").open("w") as f:
-                    json.dump(_init_params, f)
-        return curves_df, init_params
+        self.replay_core_folder.mkdir(parents=True, exist_ok=True)
+        for el in _elements:
+            _df = curves_df[[f"{el.id}_{c.variable}" for c in el.get_base_curves()]]
+            _df.columns = _df.columns.str.removeprefix(el.id + "_")
+            _df.to_parquet(
+                self.replay_core_folder / f"{el.id}.parquet",
+                engine="pyarrow",
+                compression="snappy",
+            )
+            _init_params = el.filter_relevant_init_params(init_params[el.id])
+            with (self.replay_core_folder / f"{el.id}_initValues.json").open("w") as f:
+                json.dump(_init_params, f)
+        self.create_replay_template()
+
+    def create_replay_template(self, keep_original_solver=False):
+        base_template = Case(PACKAGE_DIR / "templates" / "replay_base" / "replay.jobs")
+        template = base_template.duplicate(self.replay_template_folder)
+        template.job.simulation = self.job.simulation
+        if keep_original_solver:
+            template.job.solver.lib = self.job.solver.lib
+            template.par_dict["Solver"][:] = self.par_dict[self.job.solver.par_id]
+        template.save()
 
     def replay(self, curves: list[CurveInput], keep_tmp=False):
         """
@@ -147,101 +163,33 @@ class ReplayableElement:
     def replay(self, curves: list[CurveInput], keep_tmp=False):
         "Perform the replay for this element retrieving the given curves"
         df, init_values = self.read_replayable_base()
-        with self.case.replica(keep=keep_tmp) as _case:
-            ibus_table_path = _case.base_folder / "ibus_table.txt"
+        replay_template = self.case.replay_template_case
+        replay_folder = self.case.base_folder / "replay" / self.id
+        with replay_template.replica(path=replay_folder, keep=keep_tmp) as case:
+            ibus_table_path = case.base_folder / "ibus_table.txt"
             self.write_ibus_table(df, ibus_table_path)
-            _case.dyd = DynamicModelsArchitecture(
-                black_box_model=[
-                    replace(_case.bbm_dict[self.id], static_id=None),
-                    BlackBoxModel(
-                        id="IBus",
-                        lib="InfiniteBusFromTable",
-                        par_file=str(_case.par_file.name),
-                        par_id="IBus",
-                    ),
-                ],
-                connect=[
-                    Connect(
-                        id1=self.id,
-                        var1=self.v_re[:-5],
-                        id2="IBus",
-                        var2="infiniteBus_terminal",
-                    ),
-                    Connect(
-                        id1=self.id,
-                        var1=self.omega_ref,
-                        id2="IBus",
-                        var2="infiniteBus_omegaRefPu",
-                    ),
-                ],
-            )
-            _case.job.solver.lib = "dynawo_SolverIDA"
-            solver_params = Set(
-                id=_case.job.solver.par_id,
-                par=[
-                    Parameter(name="order", type_value="INT", value="2"),
-                    Parameter(name="initStep", type_value="DOUBLE", value="1e-9"),
-                    Parameter(name="minStep", type_value="DOUBLE", value="1e-9"),
-                    Parameter(name="maxStep", type_value="DOUBLE", value="1"),
-                    Parameter(name="absAccuracy", type_value="DOUBLE", value="1e-6"),
-                    Parameter(name="relAccuracy", type_value="DOUBLE", value="1e-6"),
-                    Parameter(
-                        name="minimalAcceptableStep", type_value="DOUBLE", value="1e-10"
-                    ),
-                    Parameter(
-                        name="maximumNumberSlowStepIncrease",
-                        type_value="INT",
-                        value="40",
-                    ),
-                ],
-            )
-            _case.par = ParametersSet(
-                set=[
-                    solve_references(_case.par_dict[self.bbm.par_id], init_values),
-                    solver_params,
-                    Set(
-                        id="IBus",
-                        par=[
-                            Parameter(
-                                name="infiniteBus_UPuTableName",
-                                type_value="STRING",
-                                value="UPu",
-                            ),
-                            Parameter(
-                                name="infiniteBus_UPhaseTableName",
-                                type_value="STRING",
-                                value="UPhase",
-                            ),
-                            Parameter(
-                                name="infiniteBus_OmegaRefPuTableName",
-                                type_value="STRING",
-                                value="OmegaRefPu",
-                            ),
-                            Parameter(
-                                name="infiniteBus_TableFile",
-                                type_value="STRING",
-                                value=str(ibus_table_path),
-                            ),
-                        ],
-                    ),
-                ]
-            )
-            _case.job.simulation.precision = 1e-10
-            _case.job.modeler.network = None
-            _case.crv.curve = curves
-            _case.save()
-            _case.run()
-            return _case.read_output_curves()
+            case.dyd.black_box_model[0].id = self.id
+            case.dyd.black_box_model[0].lib = self.lib
+            case.dyd.connect[0].id1 = self.id
+            case.dyd.connect[0].var1 = self.v_re[:-5]
+            case.dyd.connect[1].id1 = self.id
+            case.dyd.connect[1].var1 = self.omega_ref
+            case.par.set[0].par[:] = solve_references(
+                self.params, init_values
+            ).par  # Set element params
+            case.par.set[2].par[-1].value = str(
+                ibus_table_path
+            )  # Set final iBus table path
+            case.crv.curve = curves
+            case.save()
+            case.run()
+            return case.read_output_curves()
 
     def read_replayable_base(self):
         "Read connection curves dataframe and the init values"
         try:
-            df = pd.read_parquet(
-                self.case.replayable_base_folder / f"{self.id}.parquet"
-            )
-            dump_init_file = (
-                self.case.replayable_base_folder / f"{self.id}_initValues.json"
-            )
+            df = pd.read_parquet(self.case.replay_core_folder / f"{self.id}.parquet")
+            dump_init_file = self.case.replay_core_folder / f"{self.id}_initValues.json"
             with dump_init_file.open("r") as f:
                 init_values = json.load(f)
             return df, init_values

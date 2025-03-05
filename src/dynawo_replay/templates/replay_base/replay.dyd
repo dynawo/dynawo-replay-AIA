@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dyn:dynamicModelsArchitecture xmlns:dyn="http://www.rte-france.com/dynawo" xmlns:iidm="http://www.itesla_project.eu/schema/iidm/1_0">
+    <dyn:blackBoxModel id="_REPLACE_MODEL_ID_" lib="_REPLACE_MODEL_LIB_" parFile="replay.par" parId="ReplayableElement"/>
+    <dyn:blackBoxModel id="IBus" lib="InfiniteBusFromTable" parFile="replay.par" parId="IBus"/>
+    <dyn:connect id1="_REPLACE_MODEL_ID_" var1="_REPLACE_MODEL_TERMINAL_" id2="IBus" var2="infiniteBus_terminal"/>
+    <dyn:connect id1="_REPLACE_MODEL_ID_" var1="_REPLACE_MODEL_OMEGAREF_" id2="IBus" var2="infiniteBus_omegaRefPu"/>
+</dyn:dynamicModelsArchitecture>
