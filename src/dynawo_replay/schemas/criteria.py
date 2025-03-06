@@ -2,6 +2,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
+from .parameters import Type
+
 __NAMESPACE__ = "http://www.rte-france.com/dynawo"
 
 
@@ -80,11 +82,6 @@ class CriteriaParamsVoltageLevel:
 class Scope(Enum):
     FINAL = "FINAL"
     DYNAMIC = "DYNAMIC"
-
-
-class Type(Enum):
-    LOCAL_VALUE = "LOCAL_VALUE"
-    SUM = "SUM"
 
 
 @dataclass

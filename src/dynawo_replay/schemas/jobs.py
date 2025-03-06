@@ -96,11 +96,16 @@ class FinalValuesEntry:
 
 @dataclass
 class InitValuesEntry:
+    init: Optional[bool] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+        },
+    )
     local: Optional[bool] = field(
         default=None,
         metadata={
             "type": "Attribute",
-            "required": True,
         },
     )
     global_value: Optional[bool] = field(
@@ -108,7 +113,6 @@ class InitValuesEntry:
         metadata={
             "name": "global",
             "type": "Attribute",
-            "required": True,
         },
     )
 
