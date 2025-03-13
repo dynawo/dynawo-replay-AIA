@@ -1,41 +1,37 @@
 [project]
 name = "dynawo-replay"
-version = "0.1.0"
+version = "0.2.0"
 description = "A tool to replay curves"
 authors = [
-    {name="Guiu Oms", email="omsg@aia.es"},
     {name="Martín Campos", email="camposm@aia.es"},
+    {name="Guiu Oms", email="omsg@aia.es"},
 ]
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "click>=8.1.8",
     "contexttimer>=0.3.3",
     "numpy>=2.2.1",
     "pandas>=2.2.3",
     "pydantic-settings>=2.7.1",
-    "scikit-learn>=1.6.1",
+    "pypowsybl>=1.9.0",
     "typer>=0.15.1",
     "xsdata>=24.12",
 ]
 
 [project.optional-dependencies]
-plotting = [
+analytics = [
     "matplotlib>=3.10.0",
+    "scikit-learn>=1.6.1",
     "seaborn>=0.13.2",
+    "plotly>=6.0.0",
 ]
 
 [dependency-groups]
 dev = [
-    "altair>=5.5.0",
     "ipykernel>=6.29.5",
     "ipython>=8.31.0",
     "marimo>=0.10.17",
     "openai>=1.64.0",
-    "plotly>=6.0.0",
-    "polars>=1.22.0",
-    "pyarrow>=19.0.0",
-    "pypowsybl>=1.9.0",
     "pytest>=8.3.4",
     "pytest-xdist>=3.6.1",
     "xsdata[cli,lxml]>=24.12",
