@@ -1,6 +1,7 @@
 import shutil
 import subprocess
 import tempfile
+from collections import defaultdict
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -75,9 +76,7 @@ class Case:
 
     @property
     def dump_init_folder(self):
-        return (
-            self.base_folder / self.job.outputs.directory / "initValues" / "globalInit"
-        )
+        return self.base_folder / self.job.outputs.directory / "initValues"
 
     @property
     def dynawo_version(self):
@@ -113,12 +112,11 @@ class Case:
 
     def read_init_params(self):
         "If the simulation has been run with dumpInit, read the init params of all models"
-        _init_params = {}
-        for dump_init_file in self.dump_init_folder.iterdir():
+        _init_params = defaultdict(dict)
+        for dump_init_file in self.dump_init_folder.glob("**/*.txt"):
             model_name = dump_init_file.name.removesuffix(".txt").removeprefix(
                 "dumpInitValues-"
             )
-            _init_params[model_name] = {}
             with dump_init_file.open("r") as f:
                 for line in f:
                     if "PARAMETERS VALUES" in line:

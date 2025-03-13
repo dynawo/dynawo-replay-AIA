@@ -75,7 +75,9 @@ class ReplayableCase(Case):
         with self.replica(keep=keep_tmp) as rep:
             rep.crv.curve = [crv for el in _elements for crv in el.get_base_curves()]
             rep.job.outputs.dump_init_values = InitValuesEntry(
-                local=False, global_value=True
+                local=False,
+                global_value=True,
+                init=True,
             )
             rep.job.outputs.curves.export_mode = "CSV"
             rep.save()
