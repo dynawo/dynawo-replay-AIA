@@ -165,7 +165,7 @@ class ReplayableElement:
     @cached_property
     def sanitized_id(self):
         "Returns an id that can be embedded in a path by replacing '/' by '_'."
-        return self.id.replace("/", "_")
+        return self.id.replace("/", "_").replace(" ", "_").replace(".", "_")
 
     def get_base_curves(self) -> list[CurveInput]:
         return [
