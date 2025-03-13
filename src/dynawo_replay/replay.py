@@ -89,12 +89,14 @@ class ReplayableCase(Case):
             _df = curves_df[[f"{el.id}_{c.variable}" for c in el.get_base_curves()]]
             _df.columns = _df.columns.str.removeprefix(el.id + "_")
             _df.to_parquet(
-                self.replay_core_folder / f"{el.id}.parquet",
+                self.replay_core_folder / f"{el.sanitized_id}.parquet",
                 engine="pyarrow",
                 compression="snappy",
             )
             _init_params = el.filter_relevant_init_params(init_params[el.id])
-            with (self.replay_core_folder / f"{el.id}_initValues.json").open("w") as f:
+            with (self.replay_core_folder / f"{el.sanitized_id}_initValues.json").open(
+                "w"
+            ) as f:
                 json.dump(_init_params, f)
         self.create_replay_template()
 
@@ -114,7 +116,7 @@ class ReplayableCase(Case):
             template.par_dict["Solver"][:] = self.par_dict[self.job.solver.par_id]
         template.save()
 
-    def replay(self, curves: list[CurveInput], keep_tmp=False):
+    def replay(self, curves: list[CurveInput], keep_tmp=True):
         """
         Replay a local simulation for each one of the elements associated to the given curves.
         The case must be previously prepared with .generate_replayable_base() method.
@@ -160,6 +162,11 @@ class ReplayableElement:
     def replayable_variables(self):
         return list_available_vars(self.lib, dynawo=self.case.dynawo_home)
 
+    @cached_property
+    def sanitized_id(self):
+        "Returns an id that can be embedded in a path by replacing '/' by '_'."
+        return self.id.replace("/", "_")
+
     def get_base_curves(self) -> list[CurveInput]:
         return [
             CurveInput(model=self.id, variable=var) for var in self.connection_variables
@@ -169,14 +176,14 @@ class ReplayableElement:
         "Retrieve only params that are actually tied to a reference"
         try:
             return {ref.name: init_params[ref.name] for ref in self.params.reference}
-        except KeyError:
-            raise UnresolvedReference()
+        except KeyError as e:
+            raise UnresolvedReference(self.id, *e.args)
 
-    def replay(self, curves: list[CurveInput], keep_tmp=False):
+    def replay(self, curves: list[CurveInput], keep_tmp=True):
         "Perform the replay for this element retrieving the given curves"
         df, init_values = self.read_replayable_base()
         replay_template = self.case.replay_template_case
-        replay_folder = self.case.base_folder / "replay" / self.id
+        replay_folder = self.case.base_folder / "replay" / self.sanitized_id
         with replay_template.replica(path=replay_folder, keep=keep_tmp) as case:
             ibus_table_path = case.base_folder / "ibus_table.txt"
             self.write_ibus_table(df, ibus_table_path)
@@ -200,8 +207,12 @@ class ReplayableElement:
     def read_replayable_base(self):
         "Read connection curves dataframe and the init values"
         try:
-            df = pd.read_parquet(self.case.replay_core_folder / f"{self.id}.parquet")
-            dump_init_file = self.case.replay_core_folder / f"{self.id}_initValues.json"
+            df = pd.read_parquet(
+                self.case.replay_core_folder / f"{self.sanitized_id}.parquet"
+            )
+            dump_init_file = (
+                self.case.replay_core_folder / f"{self.sanitized_id}_initValues.json"
+            )
             with dump_init_file.open("r") as f:
                 init_values = json.load(f)
             return df, init_values
