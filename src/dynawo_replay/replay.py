@@ -77,6 +77,7 @@ class ReplayableCase(Case):
             rep.job.outputs.dump_init_values = InitValuesEntry(
                 local=False, global_value=True
             )
+            rep.job.outputs.curves.export_mode = "CSV"
             rep.save()
             rep.run()
             curves_df = rep.read_output_curves()
@@ -137,6 +138,7 @@ class ReplayableCase(Case):
         """
         with self.replica(keep=keep_tmp) as rep:
             rep.crv.curve = curves
+            rep.job.outputs.curves.export_mode = "CSV"
             rep.save()
             rep.run()
             return rep.read_output_curves()
