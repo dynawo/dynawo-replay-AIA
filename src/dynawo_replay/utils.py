@@ -78,9 +78,15 @@ def infer_connection_vars(lib: str) -> tuple[str, str, str]:
         omega_ref = "generator_omegaRefPu_value"
         if lib == "GeneratorSynchronousFourWindingsTGov1Sexs":
             omega_ref = "governor_omegaRefPu"
-        if lib == "GeneratorSynchronousThreeWindingsProportionalRegulationsTfoUva":
+        if lib in (
+            "GeneratorSynchronousThreeWindingsProportionalRegulationsTfoUva",
+            "GeneratorSynchronousThreeWindingsGoverPropVRPropIntTfoUva",
+        ):
             v_re = "transformer_terminal1_V_re"
             v_im = "transformer_terminal1_V_im"
+        if lib == "GeneratorSynchronousThreeWindingsProportionalRegulationsTfoAuxUva":
+            v_re = "coupling_terminal1_V_re"
+            v_im = "coupling_terminal1_V_im"
     else:
         omega_ref = f"{prefix}_omegaRefPu"
     return v_re, v_im, omega_ref
