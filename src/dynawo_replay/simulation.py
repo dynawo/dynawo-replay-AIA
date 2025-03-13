@@ -48,7 +48,10 @@ class Case:
     @property
     def par_file(self):
         # TODO: Something better needs to be done here
-        return next(self.base_folder.glob("*.par"))
+        filename = next(self.base_folder.glob("*.par"), None)
+        if not filename:
+            filename = next(self.base_folder.glob("*PAR*"))
+        return filename
 
     @property
     def crv_file(self):
