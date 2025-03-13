@@ -1,4 +1,5 @@
 import json
+import shutil
 from functools import cached_property
 from itertools import groupby
 
@@ -98,6 +99,12 @@ class ReplayableCase(Case):
         base_template = Case(PACKAGE_DIR / "templates" / "replay_base" / "replay.jobs")
         template = base_template.duplicate(self.replay_template_folder)
         template.job.simulation = self.job.simulation
+        if self.job.simulation.criteria:
+            for criteria in self.job.simulation.criteria:
+                shutil.copy(
+                    self.base_folder / criteria.criteria_file,
+                    template.base_folder / criteria.criteria_file,
+                )
         template.job.simulation.precision = "1e-10"
         if keep_original_solver:
             template.job.solver.lib = self.job.solver.lib
