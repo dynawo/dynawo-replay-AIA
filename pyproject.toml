@@ -12,6 +12,7 @@ dependencies = [
     "contexttimer>=0.3.3",
     "numpy>=2.2.1",
     "pandas>=2.2.3",
+    "pyarrow>=19.0.1",
     "pydantic-settings>=2.7.1",
     "pypowsybl>=1.9.0",
     "typer>=0.15.1",
