@@ -14,7 +14,7 @@ app = typer.Typer()
 
 
 @app.command()
-def run(
+def prepare(
     jobs_file: Path,
     dynawo: Path = settings.DYNAWO_HOME,
     keep_tmp: bool = False,
