@@ -1,9 +1,15 @@
+from pathlib import Path
+
 import pandas as pd
 
 from .config import settings
 from .schemas.ddb import Model
 from .schemas.io import parser
 from .schemas.parameters import Parameter, ParametersSet
+
+
+def find_jobs_file(case_folder: Path):
+    return next(case_folder.glob("*.jobs"), None) or next(case_folder.glob("*JOB*"))
 
 
 def list_available_vars(model, dynawo=settings.DYNAWO_HOME):

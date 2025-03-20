@@ -9,13 +9,14 @@ from .config import settings
 from .exceptions import CaseNotPreparedForReplay
 from .replay import ReplayableCase
 from .schemas.curves_input import CurveInput
+from .utils import find_jobs_file
 
 app = typer.Typer()
 
 
 @app.command()
 def prepare(
-    jobs_file: Path,
+    case_folder: Path,
     dynawo: Path = settings.DYNAWO_HOME,
     keep_tmp: bool = False,
     force: bool = False,
@@ -24,6 +25,7 @@ def prepare(
     Executes a large-scale power grid simulation using Dynaωo,
     storing only the minimal data required to enable later reconstruction of curves.
     """
+    jobs_file = find_jobs_file(case_folder)
     case = ReplayableCase(jobs_file, dynawo)
     output_folder = case.replay_core_folder
     if output_folder.exists() and not force:
@@ -34,31 +36,36 @@ def prepare(
         if not continue_:
             return
     with Timer() as t:
-        case.generate_replayable_base(keep_tmp=keep_tmp, save=True)
+        case.generate_replayable_base(keep_tmp=keep_tmp)
     typer.echo(f"Succesfully executed job «{case.name}» in {t.elapsed:.2}s.")
     typer.echo(f"Global output stored in {output_folder}.")
 
 
 @app.command()
 def replay(
-    jobs_file: Path,
-    curves: list[str],
+    case_folder: Path,
+    model_id: str,
+    variables: list[str],
     dynawo: Path = settings.DYNAWO_HOME,
     keep_tmp: bool = False,
 ):
     """
     Reconstructs the desired variable curves for a specific simulation scenario
     by rerunning localized simulations with the previously stored minimal data.
-    Curves must be passed in format {model}::{variable}.
+    You must pass the case folder, the ID of model you want to replay, and the list of variables
+    that you want to replay from this model.
     """
-    parsed_curves = []
-    for curve_str in sorted(curves):
-        model, variable = curve_str.split("::")
-        parsed_curves.append(CurveInput(model=model, variable=variable))
     with Timer() as t:
+        jobs_file = find_jobs_file(case_folder)
         case = ReplayableCase(jobs_file, dynawo)
         try:
-            df = case.replay(parsed_curves, keep_tmp=keep_tmp)
+            df = case.replay(
+                [
+                    CurveInput(model=model_id, variable=variable)
+                    for variable in variables
+                ],
+                keep_tmp=keep_tmp,
+            )
         except CaseNotPreparedForReplay:
             raise RuntimeError(
                 "Case not prepared for replay. Execute ```run``` command first."
@@ -69,6 +76,7 @@ def replay(
             / "outputs"
             / f"{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv"
         )
+        output_file.parent.mkdir(parents=True, exist_ok=True)
         df.to_csv(output_file, sep=";")
-    typer.echo(f"Succesfully replayed curves {curves} in {t.elapsed:.2}s.")
+    typer.echo(f"Succesfully replayed {len(variables)} curves in {t.elapsed:.2}s.")
     typer.echo(f"Output stored in {output_file}.")
