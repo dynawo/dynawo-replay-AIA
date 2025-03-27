@@ -4,7 +4,6 @@ from .exceptions import (
     DynawoExecutionError,
     NotStabilizedCurve,
 )
-from .metrics import compare_curves
 from .replay import ReplayableCase
 from .simulation import Case
 from .utils import list_available_vars
@@ -17,5 +16,4 @@ __all__ = [
     "DynawoExecutionError",
     "NotStabilizedCurve",
     "list_available_vars",
-    "compare_curves",
 ]
