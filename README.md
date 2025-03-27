@@ -8,13 +8,13 @@ The methodology involves executing a global simulation while extracting only a m
 This tool is developed as a Python package and is available on PyPI. It can be installed using any `pip`-based installer. We recommend using `pipx` or `uv` to avoid dependency conflicts:
 
 ```sh
-uv tool install dynawo-replay
+uv tool install git+https://github.com/dynawo/dynawo-replay-AIA
 ```
 
 For analytical purposes, install the following version:
 
 ```sh
-uv tool install dynawo-replay[analytics]
+uv tool install git+https://github.com/dynawo/dynawo-replay-AIA[analytics]
 ```
 
 Verify the installation with:
@@ -28,7 +28,12 @@ dynawo-replay --help
 ## Usage
 The methodology consists of two main steps: case preparation and replay.
 
-### Preparation
+### Config
+The path to the Dynawo package used for running simulations is configured through the environment variable ```DYNAWO_HOME```, which defaults to ```~/dynawo/```, but can be overridden via command-line options (see ```--help``` for each package command).
+
+Other settings can also be configured via environment variables. See ```src/dynawo_replay/config.py``` for a complete list.
+
+### Case preparation
 Run the global simulation while storing necessary data for later curve reconstruction using the `prepare` command. Given a Dynawo case located in `case/`, run:
 
 ```sh
@@ -41,7 +46,7 @@ This executes the simulation using Dynawo as defined in `case/`, exporting minim
 Reconstruct curves via a local replay. Provide the case folder, model ID, and the list of variables to be reconstructed using the `replay` command. For example:
 
 ```sh
-dynawo-replay replay case/ tmp/IEEE57_GeneratorDisconnection/ GEN____6_SM generator_iStatorPu_im generator_iStatorPu_re
+dynawo-replay replay ./IEEE57_GeneratorDisconnection/ GEN____6_SM generator_iStatorPu_im generator_iStatorPu_re
 ```
 
 For further details, use the `--help` option on any command.
