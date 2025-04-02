@@ -43,7 +43,11 @@ def reindex(s: pd.Series, new_index: np.array, method="pchip") -> pd.Series:
     return pd.Series(new_values, index=new_index)
 
 
-def postprocess_curve(s: pd.Series, target_freq=1e2, intermediate_freq=1e4):
+def postprocess_curve(
+    s: pd.Series,
+    target_freq=settings.POSTPROCESS_TARGET_FREQ,
+    intermediate_freq=settings.POSTPROCESS_FINE_FREQ,
+):
     "Post-process a time series to remove high-frequency variations using resampling and low-pass filtering."
     t0, tf = s.index.min(), s.index.max()
     s = reduce_curve(s)
