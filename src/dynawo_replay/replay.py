@@ -68,7 +68,8 @@ class ReplayableCase(Case):
             _elements = self.replayable_elements.values()
         else:
             _elements = [self.replayable_elements[el] for el in elements]
-        with self.replica(keep=keep_tmp) as rep:
+        prep_folder = self.base_folder / "replay" / "_prep"
+        with self.replica(path=prep_folder, keep=keep_tmp) as rep:
             rep.crv.curve = [crv for el in _elements for crv in el.get_base_curves()]
             rep.job.outputs.dump_init_values = InitValuesEntry(
                 local=False,
