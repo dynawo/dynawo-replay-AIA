@@ -6,14 +6,17 @@ app = marimo.App(width="medium")
 
 @app.cell
 def _(mo):
+    from pathlib import Path
     from dynawo_replay import ReplayableCase
 
-    # case = ReplayableCase("data/tmp/Nordic/Nordic.jobs")
-    # case = ReplayableCase("data/tmp/IEEE118_NodeFault/IEEE118.jobs")
-    case = ReplayableCase("data/tmp/IEEE57_GeneratorDisconnection/IEEE57.jobs")
-    # case = ReplayableCase("data/tmp/TestCase2/TestCase2.jobs")
+    # case = ReplayableCase("tmp/Nordic/Nordic.jobs")
+    # case = ReplayableCase("tmp/IEEE118_NodeFault/IEEE118.jobs")
+    # case = ReplayableCase("tmp/IEEE57_GeneratorDisconnection/IEEE57.jobs")
+    case = ReplayableCase("tmp/IEEE57_Fault/IEEE57.jobs")
+    # case = ReplayableCase("tmp/TestCase2/TestCase2.jobs")
+    # case = ReplayableCase("tmp/t0/fic_JOB.xml")
     mo.md(f"Using case at {case.base_folder}.")
-    return ReplayableCase, case
+    return Path, ReplayableCase, case
 
 
 @app.cell
@@ -52,14 +55,24 @@ def _(curves_selection, mo):
 
 
 @app.cell
-def _(case, selected_curves):
+def _(case):
     case.generate_replayable_base()
-    original_df = case.calculate_reference_curves(selected_curves)
-    replayed_df = case.replay(selected_curves, keep_tmp=True)
-    return original_df, replayed_df
+    return
 
 
 @app.cell
+def _(case, selected_curves):
+    reference_df = case.calculate_reference_curves(selected_curves)
+    return (reference_df,)
+
+
+@app.cell
+def _(case, selected_curves):
+    replayed_df = case.replay(selected_curves, keep_tmp=True)
+    return (replayed_df,)
+
+
+@app.cell(hide_code=True)
 def _(curves_column_names, mo):
     curve_to_plot_dropdown = mo.ui.dropdown(
         options=curves_column_names, label="Curve to plot", value=curves_column_names[0]
@@ -69,32 +82,91 @@ def _(curves_column_names, mo):
 
 
 @app.cell
-def _(curve_to_plot_dropdown, original_df, replayed_df):
-    from matplotlib import pyplot as plt
-
-    if curve_to_plot_dropdown.value:
-        plot = original_df[curve_to_plot_dropdown.value].plot(label="original")
-        plot = replayed_df[curve_to_plot_dropdown.value].plot(
-            label="replayed", linestyle="--"
-        )
-        plt.legend()
-    else:
-        plot = "Choose a curve to plot in the dropdown above"
-
-    plot
-    return plot, plt
+def _(curve_to_plot_dropdown, plot_curves_comparison):
+    plot_curves_comparison(curve_to_plot_dropdown.value)
+    return
 
 
-@app.cell
-def _(curve_to_plot_dropdown, mo, original_df, replayed_df):
+@app.cell(hide_code=True)
+def _(reference_df, replayed_df):
+    import plotly.express as px
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
     from dynawo_replay.metrics import compare_curves
 
-    metrics = compare_curves(
-        original_df[curve_to_plot_dropdown.value],
-        replayed_df[curve_to_plot_dropdown.value],
-    )
-    mo.ui.table(data=[metrics.__dict__])
-    return compare_curves, metrics
+
+    def plot_curves_comparison(
+        curve_name: str,
+        show_metrics: list[str] = [
+            "ptp_ref",
+            "ptp_rep",
+            "ptp_diff",
+            "ss_value_ref",
+            "ss_value_rep",
+            "ss_value_diff",
+            "ss_time_ref",
+            "ss_time_rep",
+            "ss_time_diff",
+            "ptp_diff_rel",
+            "ss_value_diff_rel",
+        ],
+    ) -> go.Figure:
+        """
+        Plot comparison of curves with a table displaying metrics below the graph.
+
+        Parameters
+        ----------
+        curve_name : str
+            The name of the curve to plot and analyze.
+
+        Returns
+        -------
+        go.Figure
+            The plotly figure object with line plots and a metrics table.
+        """
+        fig = make_subplots(
+            rows=2,
+            cols=1,
+            row_heights=[0.8, 0.2],
+            subplot_titles=(curve_name, None),
+            specs=[[{"type": "xy"}], [{"type": "table"}]],
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=reference_df.index,
+                y=reference_df[curve_name],
+                mode="lines",
+                name="Reference",
+            ),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=replayed_df.index,
+                y=replayed_df[curve_name],
+                mode="lines",
+                line=dict(dash="dot"),
+                name="Replayed",
+            ),
+            row=1,
+            col=1,
+        )
+        fig.update_layout(xaxis_title="Time")
+        metrics = compare_curves(
+            reference_df[curve_name],
+            replayed_df[curve_name],
+        )
+        fig.add_trace(
+            go.Table(
+                header=dict(values=show_metrics),
+                cells=dict(values=[f"{getattr(metrics, m):.2f}" for m in show_metrics]),
+            ),
+            row=2,
+            col=1,
+        )
+        return fig
+    return compare_curves, go, make_subplots, plot_curves_comparison, px
 
 
 @app.cell

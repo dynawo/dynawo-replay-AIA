@@ -1,8 +1,11 @@
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
+from scipy.interpolate import pchip_interpolate
 
 from .config import settings
+from .lp_filters import apply_filtfilt, critically_damped_lpf
 from .schemas.ddb import Model
 from .schemas.io import parser
 from .schemas.parameters import Parameter, ParametersSet
@@ -27,6 +30,30 @@ def reduce_curve(s: pd.Series):
     s_prima = s.diff() / s.index.to_series().diff()
     mask = (s_prima.diff() == 0) & (s_prima.diff(-1) == 0)
     s = s.loc[~mask]
+    return s
+
+
+def reindex(s: pd.Series, new_index: np.array, method="pchip") -> pd.Series:
+    if method == "pchip":
+        new_values = pchip_interpolate(s.index, s.values, new_index)
+    elif method == "linear":
+        new_values = np.interp(new_index, s.index, s.values)
+    else:
+        raise RuntimeError()
+    return pd.Series(new_values, index=new_index)
+
+
+def postprocess_curve(s: pd.Series, target_freq=1e2, intermediate_freq=1e4):
+    "Post-process a time series to remove high-frequency variations using resampling and low-pass filtering."
+    t0, tf = s.index.min(), s.index.max()
+    s = reduce_curve(s)
+    intermediate_time_grid = np.arange(t0, tf, step=1 / intermediate_freq)
+    target_time_grid = np.arange(t0, tf, step=1 / target_freq)
+    cutoff_freq = target_freq / 2
+    s = reindex(s, intermediate_time_grid)
+    b, a = critically_damped_lpf(cutoff_freq, intermediate_freq)
+    s = pd.Series(apply_filtfilt(b, a, s.values, padding_method="gust"), index=s.index)
+    s = reindex(s, target_time_grid)
     return s
 
 

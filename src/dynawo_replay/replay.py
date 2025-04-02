@@ -15,6 +15,7 @@ from .utils import (
     combine_dataframes,
     infer_connection_vars,
     list_available_vars,
+    postprocess_curve,
     reduce_curve,
     solve_references,
 )
@@ -202,7 +203,9 @@ class ReplayableElement:
             case.crv.curve = curves
             case.save()
             case.run()
-            return case.read_output_curves()
+            replayed_df = case.read_output_curves()
+            replayed_df = replayed_df.apply(postprocess_curve)
+            return replayed_df
 
     def read_replayable_base(self):
         "Read connection curves dataframe and the init values"
