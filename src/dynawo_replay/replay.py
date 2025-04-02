@@ -6,6 +6,8 @@ from itertools import groupby
 import numpy as np
 import pandas as pd
 
+from dynawo_replay.schemas.dyd import BlackBoxModel, Connect
+
 from .config import PACKAGE_DIR
 from .exceptions import CaseNotPreparedForReplay, UnresolvedReference
 from .schemas.curves_input import CurveInput
@@ -13,8 +15,8 @@ from .schemas.jobs import InitValuesEntry
 from .simulation import Case
 from .utils import (
     combine_dataframes,
-    infer_connection_vars,
     list_available_vars,
+    load_supported_models,
     postprocess_curve,
     reduce_curve,
     solve_references,
@@ -39,20 +41,13 @@ class ReplayableCase(Case):
 
     @cached_property
     def replayable_elements(self):
+        supported_models = load_supported_models()
         return {
-            bbm.id: ReplayableElement(case=self, id=bbm.id)
-            for bbm in self.dyd.black_box_model
-            if (
-                "SignalN" not in bbm.lib
-                and "NoPlantControl" not in bbm.lib
-                and (
-                    bbm.lib.startswith("GeneratorSynchronous")
-                    or bbm.lib.startswith("Photovoltaic")
-                    or bbm.lib.startswith("WTG")
-                    or bbm.lib.startswith("IECWPP")
-                    or bbm.lib.startswith("BESScb")
-                )
+            bbm.id: ReplayableElement(
+                case=self, id=bbm.id, connection_variables=supported_models.get(bbm.lib)
             )
+            for bbm in self.dyd.black_box_model
+            if bbm.lib in supported_models
         }
 
     def generate_replayable_base(
@@ -150,14 +145,16 @@ class ReplayableCase(Case):
 
 
 class ReplayableElement:
-    def __init__(self, case: Case, id: str):
+    def __init__(self, case: Case, id: str, connection_variables: dict):
         self.case = case
         self.id = id
         self.bbm = self.case.bbm_dict[id]
         self.params = self.case.par_dict[self.bbm.par_id]
         self.lib = self.bbm.lib
-        self.connection_variables = infer_connection_vars(self.lib)
-        self.v_re, self.v_im, self.omega_ref = self.connection_variables
+        self.connection_variables = connection_variables
+        self.omega_ref, self.v_re, self.v_im, self.uva = (
+            self.connection_variables.values()
+        )
 
     @cached_property
     def replayable_variables(self):
@@ -170,7 +167,9 @@ class ReplayableElement:
 
     def get_base_curves(self) -> list[CurveInput]:
         return [
-            CurveInput(model=self.id, variable=var) for var in self.connection_variables
+            CurveInput(model=self.id, variable=var)
+            for var in self.connection_variables.values()
+            if var
         ]
 
     def filter_relevant_init_params(self, init_params) -> dict:
@@ -194,12 +193,28 @@ class ReplayableElement:
             case.dyd.connect[0].var1 = self.v_re[:-5]
             case.dyd.connect[1].id1 = self.id
             case.dyd.connect[1].var1 = self.omega_ref
-            case.par.set[0].par[:] = solve_references(
-                self.params, init_values
-            ).par  # Set element params
-            case.par.set[2].par[-1].value = str(
-                ibus_table_path
-            )  # Set final iBus table path
+            case.par.set[0].par[:] = solve_references(self.params, init_values).par
+            case.par.set[2].par[-1].value = str(ibus_table_path)
+            if self.uva:
+                uva_ibus_table_path = case.base_folder / "uva_ibus_table.txt"
+                self.write_uva_ibus_table(df, uva_ibus_table_path)
+                case.dyd.black_box_model.append(
+                    BlackBoxModel(
+                        id="UvaIBus",
+                        lib="InfiniteBusFromTable",
+                        par_file="replay.par",
+                        par_id="IBus",
+                    )
+                )
+                case.dyd.connect.append(
+                    Connect(
+                        id1=self.id,
+                        var1=self.uva,
+                        id2="IBus",
+                        var2="infiniteBus_terminal",
+                    )
+                )
+                case.par.set[3].par[-1].value = str(uva_ibus_table_path)
             case.crv.curve = curves
             case.save()
             case.run()
@@ -222,6 +237,12 @@ class ReplayableElement:
         except FileNotFoundError:
             raise CaseNotPreparedForReplay()
 
+    def write_series_in_table(self, series, i, f):
+        f.write(f"#{i + 1}\n")
+        f.write(f"\ndouble {series.name}({len(series)},2)\n")
+        for time, value in series.items():
+            f.write(f"{time:.10f} {value:.10f}\n")
+
     def write_ibus_table(self, df, filename="ibus_table.txt"):
         "Create the .txt file used to pass a TableFile for the InfiniteBus model"
         U = reduce_curve(np.hypot(df[self.v_re], df[self.v_im]).rename("UPu"))
@@ -231,7 +252,9 @@ class ReplayableElement:
         omega = reduce_curve(df[self.omega_ref].rename("OmegaRefPu"))
         with open(filename, "w") as f:
             for i, s in enumerate((omega, U, U_phase)):
-                f.write(f"#{i + 1}\n")
-                f.write(f"\ndouble {s.name}({len(s)},2)\n")
-                for time, value in s.items():
-                    f.write(f"{time:.10f} {value:.10f}\n")
+                self.write_series_in_table(s, i, f)
+
+    def write_uva_ibus_table(self, df, filename="uva_ibus_table.txt"):
+        U = reduce_curve(df[self.uva]).rename("UPu")
+        with open(filename, "w") as f:
+            self.write_series_in_table(U, 1, f)

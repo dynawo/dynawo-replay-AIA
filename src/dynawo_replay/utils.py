@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from scipy.interpolate import pchip_interpolate
 
-from .config import settings
+from .config import PACKAGE_DIR, settings
 from .lp_filters import apply_filtfilt, critically_damped_lpf
 from .schemas.ddb import Model
 from .schemas.io import parser
@@ -127,6 +127,16 @@ def infer_connection_vars(lib: str) -> tuple[str, str, str]:
     else:
         omega_ref = f"{prefix}_omegaRefPu"
     return v_re, v_im, omega_ref
+
+
+def load_supported_models():
+    df = pd.read_csv(
+        PACKAGE_DIR / "supported_models.csv",
+        index_col="name",
+        dtype=str,
+        keep_default_na=False,
+    )
+    return df.to_dict(orient="index")
 
 
 def solve_references(pset: ParametersSet, ref_value: dict):
