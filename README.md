@@ -5,7 +5,7 @@ Dynawo Replay is a tool for running dynamic power grid simulations using Dynawo 
 The methodology involves executing a global simulation while extracting only a minimal set of variables (curves). These are then used to recreate any desired variables via a *local replay*. In simplified terms, the simulation exports voltage and frequency at connection points of dynamic models (generators). The local replay then consists of a mini-simulation where the generator is connected to an infinite bus with voltage and frequency set to the extracted values from the global simulation.
 
 ## Installation
-This tool is developed as a Python package and is available on PyPI. It can be installed using any `pip`-based installer. We recommend using `pipx` or `uv` to avoid dependency conflicts:
+This tool is developed as a Python package. It can be installed using any `pip`-based installer. We recommend using `pipx` or `uv` to avoid dependency conflicts:
 
 ```sh
 uv tool install git+https://github.com/dynawo/dynawo-replay-AIA
@@ -15,6 +15,12 @@ For analytical purposes, install the following version:
 
 ```sh
 uv tool install git+https://github.com/dynawo/dynawo-replay-AIA[analytics]
+```
+
+But, of course, you can always go with plain ```pip```:
+
+```sh
+pip install git+https://github.com/dynawo/dynawo-replay-AIA
 ```
 
 Verify the installation with:
