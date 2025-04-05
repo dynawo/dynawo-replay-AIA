@@ -1,7 +1,6 @@
 import json
 import shutil
 from functools import cached_property
-from itertools import groupby
 
 import numpy as np
 import pandas as pd
@@ -14,7 +13,6 @@ from .schemas.curves_input import CurveInput
 from .schemas.jobs import InitValuesEntry
 from .simulation import Case
 from .utils import (
-    combine_dataframes,
     list_available_vars,
     load_supported_models,
     postprocess_curve,
@@ -113,32 +111,29 @@ class ReplayableCase(Case):
             template.par_dict["Solver"][:] = self.par_dict[self.job.solver.par_id]
         template.save()
 
-    def replay(self, curves: list[CurveInput], keep_tmp=True):
+    def replay(self, element_id: str, curves: list[str], keep_tmp=True):
         """
-        Replay a local simulation for each one of the elements associated to the given curves.
+        Replay a local simulation for the given element retrieving the demanded curves.
         The case must be previously prepared with .generate_replayable_base() method.
-        These local simulations are run in a replicated folders where the dynamic architecture is
-        rewritten to only contain the terminal node and a InfiteBusFromTable model.
+        This simulation is executed in a replicated folder for the parent case where the
+        dynamic architecture is rewritten to replace the rest of the network as an InfiniteBus.
         No .iidm file is generated for this case, and the references in model parameters are read
         from init values dumped in the case preparation.
-        All curves generated are combined into a single dataframe where the values are interpolated
-        to a full time index.
-        The replicated folders are deleted if keep_tmp is False.
+        The local simulation case folder is deleted if keep_tmp is False.
         """
-        curves_dfs = []
-        for element_id, curves_ in groupby(curves, key=lambda x: x.model):
-            element = self.replayable_elements[element_id]
-            curves_dfs.append(element.replay(list(curves_), keep_tmp=keep_tmp))
-        return combine_dataframes(curves_dfs)
+        element = self.replayable_elements[element_id]
+        return element.replay(curves, keep_tmp=keep_tmp)
 
-    def calculate_reference_curves(self, curves: list[CurveInput], keep_tmp=False):
+    def calculate_reference_curves(
+        self, element_id: str, curves: list[str], keep_tmp=False
+    ):
         """
         Run the large case scenario extracting the given list of curves.
         This method is intended to be used only for later comparing the replay
         functionality in benchmarks or tests.
         """
         with self.replica(keep=keep_tmp) as rep:
-            rep.crv.curve = curves
+            rep.crv.curve = [CurveInput(model=element_id, variable=v) for v in curves]
             rep.job.outputs.curves.export_mode = "CSV"
             rep.save()
             rep.run()
@@ -180,7 +175,7 @@ class ReplayableElement:
         except KeyError as e:
             raise UnresolvedReference(self.id, *e.args)
 
-    def replay(self, curves: list[CurveInput], keep_tmp=True):
+    def replay(self, curves: list[str], keep_tmp=True):
         "Perform the replay for this element retrieving the given curves"
         df, init_values = self.read_replayable_base()
         replay_template = self.case.replay_template_case
@@ -216,7 +211,7 @@ class ReplayableElement:
                     )
                 )
                 case.par.set[3].par[-1].value = str(uva_ibus_table_path)
-            case.crv.curve = curves
+            case.crv.curve = [CurveInput(model=self.id, variable=v) for v in curves]
             case.save()
             case.run()
             replayed_df = case.read_output_curves()

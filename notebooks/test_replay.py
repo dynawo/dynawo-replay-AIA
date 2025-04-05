@@ -5,53 +5,34 @@ app = marimo.App(width="medium")
 
 
 @app.cell
-def _(mo):
-    from pathlib import Path
+def _():
     from dynawo_replay import ReplayableCase
 
     # case = ReplayableCase("tmp/Nordic/Nordic.jobs")
     # case = ReplayableCase("tmp/IEEE118_NodeFault/IEEE118.jobs")
-    # case = ReplayableCase("tmp/IEEE57_GeneratorDisconnection/IEEE57.jobs")
-    case = ReplayableCase("tmp/IEEE57_Fault/IEEE57.jobs")
+    case = ReplayableCase("tmp/IEEE57_GeneratorDisconnection/IEEE57.jobs")
+    # case = ReplayableCase("tmp/IEEE57_Fault/IEEE57.jobs")
     # case = ReplayableCase("tmp/TestCase2/TestCase2.jobs")
     # case = ReplayableCase("tmp/t0/fic_JOB.xml")
-    mo.md(f"Using case at {case.base_folder}.")
-    return Path, ReplayableCase, case
+    return ReplayableCase, case
 
 
-@app.cell
-def _(case, mo):
-    curves_options = [
-        f"{el.id}::{v.name}"
-        for el in case.replayable_elements.values()
-        for v in el.replayable_variables
-    ]
-    curves_selection = mo.ui.multiselect(
-        options=curves_options, full_width=True, value=curves_options[:1]
-    )
-    return curves_options, curves_selection
-
-
-@app.cell
-def _(curves_selection, mo):
-    from dynawo_replay.schemas.curves_input import CurveInput
-
-    _curves_md = ""
-    curves_column_names = []
-    selected_curves = []
-    for _curve in curves_selection.value:
-        model, variable = _curve.split("::")
-        selected_curves.append(CurveInput(model=model, variable=variable))
-        curves_column_names.append(_curve.replace("::", "_"))
-        _curves_md += f"\n\n- {_curve}"
+@app.cell(hide_code=True)
+def _(case, curves_selection, element_selection, mo):
+    column_names = [f"{element_selection.value.id}_{v}" for v in curves_selection.value]
+    _md_list = "".join(f"\n- {c}" for c in column_names)
 
     mo.md(f"""
-    Select the curves to test the replay:
+    Using case at {case.base_folder}.
+
+    {element_selection}
+
     {curves_selection}
 
-    Selection: {_curves_md}
+    Full list of curves to replay is:
+    {_md_list}
     """)
-    return CurveInput, curves_column_names, model, selected_curves, variable
+    return (column_names,)
 
 
 @app.cell
@@ -61,23 +42,22 @@ def _(case):
 
 
 @app.cell
-def _(case, selected_curves):
-    reference_df = case.calculate_reference_curves(selected_curves)
+def _(case, curves_selection, element_selection):
+    reference_df = case.calculate_reference_curves(element_selection.value.id, curves_selection.value)
     return (reference_df,)
 
 
 @app.cell
-def _(case, selected_curves):
-    replayed_df = case.replay(selected_curves, keep_tmp=True)
+def _(case, curves_selection, element_selection):
+    replayed_df = case.replay(element_selection.value.id, curves_selection.value, keep_tmp=True)
     return (replayed_df,)
 
 
-@app.cell(hide_code=True)
-def _(curves_column_names, mo):
+@app.cell
+def _(column_names, mo):
     curve_to_plot_dropdown = mo.ui.dropdown(
-        options=curves_column_names, label="Curve to plot", value=curves_column_names[0]
+        options=column_names, label="Curve to plot", value=column_names[0]
     )
-    curve_to_plot_dropdown
     return (curve_to_plot_dropdown,)
 
 
@@ -167,6 +147,33 @@ def _(reference_df, replayed_df):
         )
         return fig
     return compare_curves, go, make_subplots, plot_curves_comparison, px
+
+
+@app.cell(hide_code=True)
+def _(case, mo):
+    replayable_elements = list(case.replayable_elements.values())
+    _options = {f"{e.id} ({e.lib})": e for e in replayable_elements}
+    _default_option = next(iter(_options))
+    element_selection = mo.ui.dropdown(
+        options=_options,
+        label="Element to replay",
+        value=_default_option,
+        full_width=True,
+        searchable=True,
+    )
+    return element_selection, replayable_elements
+
+
+@app.cell(hide_code=True)
+def _(element_selection, mo):
+    replayable_curves = [v.name for v in element_selection.value.replayable_variables]
+    curves_selection = mo.ui.multiselect(
+        options=replayable_curves,
+        label="Curves to replay",
+        value=replayable_curves[:1],
+        full_width=True,
+    )
+    return curves_selection, replayable_curves
 
 
 @app.cell

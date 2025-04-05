@@ -8,7 +8,6 @@ from rich.prompt import Confirm
 from .config import settings
 from .exceptions import CaseNotPreparedForReplay
 from .replay import ReplayableCase
-from .schemas.curves_input import CurveInput
 from .utils import find_jobs_file
 
 app = typer.Typer()
@@ -60,10 +59,8 @@ def replay(
         case = ReplayableCase(jobs_file, dynawo)
         try:
             df = case.replay(
-                [
-                    CurveInput(model=model_id, variable=variable)
-                    for variable in variables
-                ],
+                element_id=model_id,
+                curves=variables,
                 keep_tmp=keep_tmp,
             )
         except CaseNotPreparedForReplay:
