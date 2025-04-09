@@ -103,7 +103,9 @@ class ReplayableCase(Case):
         template.job.simulation.stop_time = self.job.simulation.stop_time
         if keep_original_solver:
             template.job.solver.lib = self.job.solver.lib
-            template.par_dict["Solver"][:] = self.par_dict[self.job.solver.par_id]
+            template.par_dict["Solver"].par[:] = self.par_dict[
+                self.job.solver.par_id
+            ].par
         template.save()
 
     def replay(self, element_id: str, curves: list[str], keep_tmp=True):
