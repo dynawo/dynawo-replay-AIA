@@ -99,6 +99,12 @@ class ReplayableCase(Case):
     def create_replay_template(self, keep_original_solver=False):
         base_template = Case(PACKAGE_DIR / "templates" / "replay_base" / "replay.jobs")
         template = base_template.duplicate(self.replay_template_folder)
+        if self.job.modeler.initial_state:
+            template.job.modeler.initial_state = self.job.modeler.initial_state
+            shutil.copy(
+                self.base_folder / self.job.modeler.initial_state.file,
+                template.base_folder / template.job.modeler.initial_state.file,
+            )
         template.job.simulation.start_time = self.job.simulation.start_time
         template.job.simulation.stop_time = self.job.simulation.stop_time
         if keep_original_solver:
