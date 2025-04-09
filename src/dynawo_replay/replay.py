@@ -52,6 +52,7 @@ class ReplayableCase(Case):
         self,
         elements: list[str] = [],
         keep_tmp: bool = False,
+        keep_original_solver: bool = False,
     ):
         """
         Run the complete network simulation and generate the data necessary for later replay.
@@ -93,7 +94,7 @@ class ReplayableCase(Case):
                 "w"
             ) as f:
                 json.dump(_init_params, f)
-        self.create_replay_template()
+        self.create_replay_template(keep_original_solver=keep_original_solver)
 
     def create_replay_template(self, keep_original_solver=False):
         base_template = Case(PACKAGE_DIR / "templates" / "replay_base" / "replay.jobs")

@@ -18,6 +18,7 @@ def prepare(
     case_folder: Path,
     dynawo: Path = settings.DYNAWO_HOME,
     keep_tmp: bool = False,
+    keep_original_solver: bool = False,
     force: bool = False,
 ):
     """
@@ -35,7 +36,9 @@ def prepare(
         if not continue_:
             return
     with Timer() as t:
-        case.generate_replayable_base(keep_tmp=keep_tmp)
+        case.generate_replayable_base(
+            keep_tmp=keep_tmp, keep_original_solver=keep_original_solver
+        )
     typer.echo(f"Succesfully executed job «{case.name}» in {t.elapsed:.2}s.")
     typer.echo(f"Global output stored in {output_folder}.")
 
