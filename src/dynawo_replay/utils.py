@@ -7,6 +7,7 @@ from scipy.interpolate import pchip_interpolate
 from .config import PACKAGE_DIR, settings
 from .lp_filters import apply_filtfilt, critically_damped_lpf
 from .schemas.ddb import Model
+from .schemas.ext_var import ExternalVariables
 from .schemas.io import parser
 from .schemas.parameters import Parameter, ParametersSet
 
@@ -18,6 +19,28 @@ def find_jobs_file(case_folder: Path):
 def list_available_vars(model, dynawo=settings.DYNAWO_HOME):
     model = parser.parse(dynawo / "ddb" / f"{model}.desc.xml", Model)
     return model.elements.variables.variable
+
+
+def print_dynawo_version(dynawo_home=settings.DYNAWO_HOME):
+    return subprocess.run(
+        [dynawo_home / "dynawo.sh", "version"],
+        capture_output=True,
+        check=True,
+        text=True,
+    ).stdout
+
+
+def inspect_model(model_name, dynawo_home=settings.DYNAWO_HOME):
+    ddb_folder = dynawo_home / "ddb"
+    model = parser.parse(ddb_folder / f"{model_name}.desc.xml", Model)
+    external_vars = parser.parse(ddb_folder / f"{model_name}.extvar", ExternalVariables)
+    return model, external_vars.variable
+
+
+def inspect_model_extvars(model_name, dynawo_home=settings.DYNAWO_HOME):
+    ddb_folder = dynawo_home / "ddb"
+    external_vars = parser.parse(ddb_folder / f"{model_name}.extvar", ExternalVariables)
+    return external_vars.variable
 
 
 def drop_duplicated_index(s: pd.Series | pd.DataFrame):

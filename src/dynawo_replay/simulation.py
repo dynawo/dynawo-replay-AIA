@@ -78,15 +78,6 @@ class Case:
     def dump_init_folder(self):
         return self.base_folder / self.job.outputs.directory / "initValues"
 
-    @property
-    def dynawo_version(self):
-        return subprocess.run(
-            [self.dynawo_home / "dynawo.sh", "version"],
-            capture_output=True,
-            check=True,
-            text=True,
-        ).stdout
-
     def run(self, verbose=False, timeout=600):
         "Execute Dynaωo simulation"
         try:
