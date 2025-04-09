@@ -51,6 +51,8 @@ def postprocess_curve(
     "Post-process a time series to remove high-frequency variations using resampling and low-pass filtering."
     t0, tf = s.index.min(), s.index.max()
     s = reduce_curve(s)
+    if np.ptp(s) == 0:
+        return s
     intermediate_time_grid = np.arange(t0, tf, step=1 / intermediate_freq)
     target_time_grid = np.arange(t0, tf, step=1 / target_freq)
     cutoff_freq = target_freq / 2
