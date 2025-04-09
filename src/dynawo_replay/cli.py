@@ -49,6 +49,7 @@ def replay(
     model_id: str,
     variables: list[str],
     dynawo: Path = settings.DYNAWO_HOME,
+    apply_postprocessing: bool = settings.POSTPROCESS_ENABLED,
     keep_tmp: bool = False,
 ):
     """
@@ -65,6 +66,7 @@ def replay(
                 element_id=model_id,
                 curves=variables,
                 keep_tmp=keep_tmp,
+                apply_postprocessing=apply_postprocessing,
             )
         except CaseNotPreparedForReplay:
             raise RuntimeError(

@@ -6,7 +6,7 @@ import pandas as pd
 
 from dynawo_replay.schemas.dyd import BlackBoxModel, Connect
 
-from .config import PACKAGE_DIR
+from .config import PACKAGE_DIR, settings
 from .exceptions import CaseNotPreparedForReplay, UnresolvedReference
 from .schemas.curves_input import CurveInput
 from .schemas.jobs import InitValuesEntry
@@ -116,7 +116,13 @@ class ReplayableCase(Case):
             ].par
         template.save()
 
-    def replay(self, element_id: str, curves: list[str], keep_tmp=True):
+    def replay(
+        self,
+        element_id: str,
+        curves: list[str],
+        keep_tmp=True,
+        apply_postprocessing=settings.POSTPROCESS_ENABLED,
+    ):
         """
         Replay a local simulation for the given element retrieving the demanded curves.
         The case must be previously prepared with .generate_replayable_base() method.
@@ -127,7 +133,9 @@ class ReplayableCase(Case):
         The local simulation case folder is deleted if keep_tmp is False.
         """
         element = self.replayable_elements[element_id]
-        return element.replay(curves, keep_tmp=keep_tmp)
+        return element.replay(
+            curves, keep_tmp=keep_tmp, apply_postprocessing=apply_postprocessing
+        )
 
     def calculate_reference_curves(
         self, element_id: str, curves: list[str], keep_tmp=False
@@ -176,7 +184,12 @@ class ReplayableElement:
         except KeyError as e:
             raise UnresolvedReference(self.id, *e.args)
 
-    def replay(self, curves: list[str], keep_tmp=True):
+    def replay(
+        self,
+        curves: list[str],
+        keep_tmp=True,
+        apply_postprocessing=settings.POSTPROCESS_ENABLED,
+    ):
         "Perform the replay for this element retrieving the given curves"
         df, init_values = self.read_replayable_base()
         replay_template = self.case.replay_template_case
@@ -243,7 +256,8 @@ class ReplayableElement:
             case.save()
             case.run()
             replayed_df = case.read_output_curves()
-            replayed_df = replayed_df.apply(postprocess_curve)
+            if apply_postprocessing:
+                replayed_df = replayed_df.apply(postprocess_curve)
             return replayed_df
 
     def read_replayable_base(self):
@@ -262,7 +276,7 @@ class ReplayableElement:
             raise CaseNotPreparedForReplay()
 
     def write_series_in_table(self, series, i, f):
-        f.write(f"#{i + 1}\n")
+        f.write(f"#{i}\n")
         f.write(f"\ndouble {series.name}({len(series)},2)\n")
         for time, value in series.items():
             f.write(f"{time:.10f} {value:.10f}\n")
@@ -277,7 +291,7 @@ class ReplayableElement:
         OmegaRefPu = reduce_curve(df[self.connections.omegaRefPu].rename("OmegaRefPu"))
         with open(filename, "w") as f:
             for i, s in enumerate((OmegaRefPu, UPu, UPhase)):
-                self.write_series_in_table(s, i, f)
+                self.write_series_in_table(s, i + 1, f)
 
     def write_1var_table(self, curve, filename="uva_ibus_table.txt"):
         U = reduce_curve(curve)
