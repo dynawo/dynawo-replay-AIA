@@ -18,8 +18,4 @@
         <dyn:par type="STRING" name="infiniteBus_OmegaRefPuTableName" value="OmegaRefPu"/>
         <dyn:par type="STRING" name="infiniteBus_TableFile" value="./ibus_table.txt"/>
     </dyn:set>
-    <dyn:set id="UvaIBus">
-        <dyn:par type="STRING" name="infiniteBus_UPuTableName" value="UPu"/>
-        <dyn:par type="STRING" name="infiniteBus_TableFile" value="./uva_ibus_table.txt"/>
-    </dyn:set>
 </dyn:parametersSet>

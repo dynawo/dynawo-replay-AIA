@@ -1,3 +1,5 @@
+import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -154,6 +156,17 @@ def infer_connection_vars(lib: str) -> tuple[str, str, str]:
     return v_re, v_im, omega_ref
 
 
+@dataclass
+class ConnectionVars:
+    omegaRefPu: str
+    terminal_V_re: str
+    terminal_V_im: str
+    extra: list[str]
+
+    def all_vars(self):
+        return [self.omegaRefPu, self.terminal_V_re, self.terminal_V_im, *self.extra]
+
+
 def load_supported_models():
     df = pd.read_csv(
         PACKAGE_DIR / "supported_models.csv",
@@ -161,7 +174,8 @@ def load_supported_models():
         dtype=str,
         keep_default_na=False,
     )
-    return df.to_dict(orient="index")
+    df["extra"] = df["extra"].apply(lambda x: x.split("|") if x else [])
+    return {_id: ConnectionVars(**row) for _id, row in df.iterrows()}
 
 
 def solve_references(pset: ParametersSet, ref_value: dict):
@@ -176,3 +190,10 @@ def solve_references(pset: ParametersSet, ref_value: dict):
         )
     pset.reference = []
     return pset
+
+
+def to_polars(df, re_column, im_column):
+    return (
+        np.hypot(df[re_column], df[im_column]),
+        np.arctan2(df[im_column], df[re_column]),
+    )

@@ -2,7 +2,6 @@ import json
 import shutil
 from functools import cached_property
 
-import numpy as np
 import pandas as pd
 
 from dynawo_replay.schemas.dyd import BlackBoxModel, Connect
@@ -11,13 +10,16 @@ from .config import PACKAGE_DIR
 from .exceptions import CaseNotPreparedForReplay, UnresolvedReference
 from .schemas.curves_input import CurveInput
 from .schemas.jobs import InitValuesEntry
+from .schemas.parameters import Parameter, Set
 from .simulation import Case
 from .utils import (
+    ConnectionVars,
     list_available_vars,
     load_supported_models,
     postprocess_curve,
     reduce_curve,
     solve_references,
+    to_polars,
 )
 
 
@@ -42,7 +44,7 @@ class ReplayableCase(Case):
         supported_models = load_supported_models()
         return {
             bbm.id: ReplayableElement(
-                case=self, id=bbm.id, connection_variables=supported_models.get(bbm.lib)
+                case=self, id=bbm.id, connections=supported_models.get(bbm.lib)
             )
             for bbm in self.dyd.black_box_model
             if bbm.lib in supported_models
@@ -144,16 +146,13 @@ class ReplayableCase(Case):
 
 
 class ReplayableElement:
-    def __init__(self, case: Case, id: str, connection_variables: dict):
+    def __init__(self, case: Case, id: str, connections: ConnectionVars):
         self.case = case
         self.id = id
         self.bbm = self.case.bbm_dict[id]
         self.params = self.case.par_dict[self.bbm.par_id]
         self.lib = self.bbm.lib
-        self.connection_variables = connection_variables
-        self.omega_ref, self.v_re, self.v_im, self.uva = (
-            self.connection_variables.values()
-        )
+        self.connections = connections
 
     @cached_property
     def replayable_variables(self):
@@ -167,8 +166,7 @@ class ReplayableElement:
     def get_base_curves(self) -> list[CurveInput]:
         return [
             CurveInput(model=self.id, variable=var)
-            for var in self.connection_variables.values()
-            if var
+            for var in self.connections.all_vars()
         ]
 
     def filter_relevant_init_params(self, init_params) -> dict:
@@ -189,31 +187,58 @@ class ReplayableElement:
             case.dyd.black_box_model[0].id = self.id
             case.dyd.black_box_model[0].lib = self.lib
             case.dyd.connect[0].id1 = self.id
-            case.dyd.connect[0].var1 = self.v_re[:-5]
+            case.dyd.connect[0].var1 = self.connections.terminal_V_re[:-5]
             case.dyd.connect[1].id1 = self.id
-            case.dyd.connect[1].var1 = self.omega_ref
+            case.dyd.connect[1].var1 = self.connections.omegaRefPu
             case.par.set[0].par[:] = solve_references(self.params, init_values).par
             case.par.set[2].par[-1].value = str(ibus_table_path)
-            if self.uva:
-                uva_ibus_table_path = case.base_folder / "uva_ibus_table.txt"
-                self.write_uva_ibus_table(df, uva_ibus_table_path)
+            for var in self.connections.extra:
+                _table_path = case.base_folder / f"{var}_table.txt"
+                self.write_1var_table(df[var], _table_path)
+                _bbm_id = f"{var}_CombiTimeTable"
                 case.dyd.black_box_model.append(
                     BlackBoxModel(
-                        id="UvaIBus",
-                        lib="InfiniteBusFromTable",
+                        id=_bbm_id,
+                        lib="CombiTimeTable",
                         par_file="replay.par",
-                        par_id="IBus",
+                        par_id=_bbm_id,
                     )
                 )
                 case.dyd.connect.append(
                     Connect(
                         id1=self.id,
-                        var1=self.uva,
-                        id2="IBus",
-                        var2="infiniteBus_terminal",
+                        var1=var,
+                        id2=_bbm_id,
+                        var2="combiTimeTable_source_value",
                     )
                 )
-                case.par.set[3].par[-1].value = str(uva_ibus_table_path)
+                case.par.set.append(
+                    Set(
+                        id=_bbm_id,
+                        par=[
+                            Parameter(
+                                type_value="STRING",
+                                name="combiTimeTable_FileName",
+                                value=str(_table_path),
+                            ),
+                            Parameter(
+                                type_value="STRING",
+                                name="combiTimeTable_TableName",
+                                value=var,
+                            ),
+                            Parameter(
+                                type_value="INT",
+                                name="combiTimeTable_Extrapolation",
+                                value="1",
+                            ),
+                            Parameter(
+                                type_value="INT",
+                                name="combiTimeTable_Smoothness",
+                                value="2",
+                            ),
+                        ],
+                    )
+                )
             case.crv.curve = [CurveInput(model=self.id, variable=v) for v in curves]
             case.save()
             case.run()
@@ -244,16 +269,17 @@ class ReplayableElement:
 
     def write_ibus_table(self, df, filename="ibus_table.txt"):
         "Create the .txt file used to pass a TableFile for the InfiniteBus model"
-        U = reduce_curve(np.hypot(df[self.v_re], df[self.v_im]).rename("UPu"))
-        U_phase = reduce_curve(
-            np.arctan2(df[self.v_im], df[self.v_re]).rename("UPhase")
+        UPu, UPhase = to_polars(
+            df, self.connections.terminal_V_re, self.connections.terminal_V_im
         )
-        omega = reduce_curve(df[self.omega_ref].rename("OmegaRefPu"))
+        UPu = reduce_curve(UPu).rename("UPu")
+        UPhase = reduce_curve(UPhase).rename("UPhase")
+        OmegaRefPu = reduce_curve(df[self.connections.omegaRefPu].rename("OmegaRefPu"))
         with open(filename, "w") as f:
-            for i, s in enumerate((omega, U, U_phase)):
+            for i, s in enumerate((OmegaRefPu, UPu, UPhase)):
                 self.write_series_in_table(s, i, f)
 
-    def write_uva_ibus_table(self, df, filename="uva_ibus_table.txt"):
-        U = reduce_curve(df[self.uva]).rename("UPu")
+    def write_1var_table(self, curve, filename="uva_ibus_table.txt"):
+        U = reduce_curve(curve)
         with open(filename, "w") as f:
             self.write_series_in_table(U, 1, f)
