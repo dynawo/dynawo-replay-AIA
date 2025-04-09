@@ -25,6 +25,9 @@ analytics = [
     "scikit-learn>=1.6.1",
     "seaborn>=0.13.2",
     "plotly>=6.0.0",
+    "jupyter>=1.1.1",
+    "ipykernel>=6.29.5",
+    "openpyxl>=3.1.5",
 ]
 
 [dependency-groups]
