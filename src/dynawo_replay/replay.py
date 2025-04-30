@@ -110,7 +110,7 @@ class ReplayableCase(Case):
             )
         template.job.simulation.start_time = self.job.simulation.start_time
         template.job.simulation.stop_time = self.job.simulation.stop_time
-        template.job.simulation.precision = self.job.simulation.precision
+        template.job.simulation.precision = self.job.simulation.precision or "1e-10"
         if keep_original_solver:
             template.job.solver.lib = self.job.solver.lib
             template.par_dict["Solver"].par[:] = self.par_dict[
