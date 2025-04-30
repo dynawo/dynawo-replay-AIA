@@ -19,9 +19,11 @@ from .schemas.parameters import ParametersSet
 class Case:
     """Interface to interact with Dynaωo simulations"""
 
-    def __init__(self, jobs_file: str, dynawo: str = settings.DYNAWO_HOME):
+    def __init__(
+        self, jobs_file: Path | str, dynawo: Path | str = settings.DYNAWO_HOME
+    ):
         self.jobs_file = Path(jobs_file).absolute()
-        self.dynawo_home = dynawo
+        self.dynawo_home = Path(dynawo)
         self.base_folder = self.jobs_file.parent
         jobs = parser.parse(jobs_file, Jobs)
         if len(jobs.job) != 1:
