@@ -2,6 +2,7 @@ import json
 import shutil
 from functools import cached_property
 
+import numpy as np
 import pandas as pd
 
 from dynawo_replay.schemas.dyd import BlackBoxModel, Connect
@@ -109,6 +110,7 @@ class ReplayableCase(Case):
             )
         template.job.simulation.start_time = self.job.simulation.start_time
         template.job.simulation.stop_time = self.job.simulation.stop_time
+        template.job.simulation.precision = self.job.simulation.precision
         if keep_original_solver:
             template.job.solver.lib = self.job.solver.lib
             template.par_dict["Solver"].par[:] = self.par_dict[
@@ -283,6 +285,9 @@ class ReplayableElement:
 
     def write_ibus_table(self, df, filename="ibus_table.txt"):
         "Create the .txt file used to pass a TableFile for the InfiniteBus model"
+        precision = float(self.case.job.simulation.precision or "1E-8")
+        n_decimals = abs(int(np.floor(np.log10(precision))))
+        df.index = df.index.round(n_decimals)
         UPu, UPhase = to_polars(
             df, self.connections.terminal_V_re, self.connections.terminal_V_im
         )
@@ -294,6 +299,9 @@ class ReplayableElement:
                 self.write_series_in_table(s, i + 1, f)
 
     def write_1var_table(self, curve, filename="uva_ibus_table.txt"):
+        precision = float(self.case.job.simulation.precision or "1E-8")
+        n_decimals = abs(int(np.floor(np.log10(precision))))
+        curve.index = curve.index.round(n_decimals)
         U = reduce_curve(curve)
         with open(filename, "w") as f:
             self.write_series_in_table(U, 1, f)
