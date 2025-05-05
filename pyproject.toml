@@ -28,15 +28,17 @@ analytics = [
     "jupyter>=1.1.1",
     "ipykernel>=6.29.5",
     "openpyxl>=3.1.5",
+    "networkx>=3.4.2",
+    "polars>=1.27.0",
+    "pypowsybl>=1.9.0",
+    "ipykernel>=6.29.5",
+    "marimo>=0.10.17",
 ]
 
 [dependency-groups]
 dev = [
-    "ipykernel>=6.29.5",
     "ipython>=8.31.0",
-    "marimo>=0.10.17",
     "openai>=1.64.0",
-    "pypowsybl>=1.9.0",
     "pytest>=8.3.4",
     "pytest-xdist>=3.6.1",
     "xsdata[cli,lxml]>=24.12",

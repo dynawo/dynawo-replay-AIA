@@ -1,15 +1,17 @@
 import subprocess
 from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from scipy.interpolate import pchip_interpolate
 
-from .config import PACKAGE_DIR, settings
+from .config import settings
+from .exceptions import NotSupportedModel
 from .lp_filters import apply_filtfilt, critically_damped_lpf
 from .schemas.ddb import Model
-from .schemas.ext_var import ExternalVariables
+from .schemas.ext_var import ExternalVariables, VariableType
 from .schemas.io import parser
 from .schemas.parameters import Parameter, ParametersSet
 
@@ -75,12 +77,12 @@ def postprocess_curve(
 ):
     "Post-process a time series to remove high-frequency variations using resampling and low-pass filtering."
     t0, tf = s.index.min(), s.index.max()
-    s = drop_duplicated_index(s)
-    if np.ptp(s) == 0:
-        return s
     intermediate_time_grid = np.arange(t0, tf, step=1 / intermediate_freq)
     target_time_grid = np.arange(t0, tf, step=1 / target_freq)
     cutoff_freq = target_freq / 2
+    s = drop_duplicated_index(s)
+    if np.ptp(s) == 0:
+        return pd.Series(s.iloc[0], index=target_time_grid)
     s = reindex(s, intermediate_time_grid)
     b, a = critically_damped_lpf(cutoff_freq, intermediate_freq)
     s = pd.Series(apply_filtfilt(b, a, s.values, padding_method="gust"), index=s.index)
@@ -103,7 +105,9 @@ def combine_dataframes(dfs: list[pd.DataFrame]):
     return combined_df
 
 
-def infer_connection_vars(lib: str) -> tuple[str, str, str]:
+def infer_core_connection_vars(
+    lib: str, check_in_list: list[str] | None = None
+) -> tuple[str, str, str]:
     """
     Infers the connection-related variable names based on the given library name.
 
@@ -117,7 +121,7 @@ def infer_connection_vars(lib: str) -> tuple[str, str, str]:
 
     Returns:
         tuple: A tuple containing the inferred voltage real (v_re), voltage imaginary
-               (v_im), and omega reference (omega_ref) variable names.
+                (v_im), and omega reference (omega_ref) variable names.
 
     Raises:
         RuntimeError: If the library name does not match any expected prefix.
@@ -136,24 +140,26 @@ def infer_connection_vars(lib: str) -> tuple[str, str, str]:
         prefix = "photovoltaics"
     else:
         raise RuntimeError(f"Unexpected {lib=}")
-    v_re = f"{prefix}_terminal_V_re"
-    v_im = f"{prefix}_terminal_V_im"
+    if "Aux" in lib:
+        v_re = "coupling_terminal1_V_re"
+        v_im = "coupling_terminal1_V_im"
+    elif "Tfo" in lib:
+        v_re = "transformer_terminal1_V_re"
+        v_im = "transformer_terminal1_V_im"
+    else:
+        v_re = f"{prefix}_terminal_V_re"
+        v_im = f"{prefix}_terminal_V_im"
     if lib.startswith("GeneratorSynchronous"):
         omega_ref = "generator_omegaRefPu_value"
         if lib == "GeneratorSynchronousFourWindingsTGov1Sexs":
             omega_ref = "governor_omegaRefPu"
-        if lib in (
-            "GeneratorSynchronousThreeWindingsProportionalRegulationsTfoUva",
-            "GeneratorSynchronousThreeWindingsGoverPropVRPropIntTfoUva",
-        ):
-            v_re = "transformer_terminal1_V_re"
-            v_im = "transformer_terminal1_V_im"
-        if lib == "GeneratorSynchronousThreeWindingsProportionalRegulationsTfoAuxUva":
-            v_re = "coupling_terminal1_V_re"
-            v_im = "coupling_terminal1_V_im"
     else:
         omega_ref = f"{prefix}_omegaRefPu"
-    return v_re, v_im, omega_ref
+    if check_in_list is not None:
+        for v in (omega_ref, v_re, v_im):
+            if v not in check_in_list:
+                raise RuntimeError(f"Variable {v} not in the check_list")
+    return omega_ref, v_re, v_im
 
 
 @dataclass
@@ -166,16 +172,43 @@ class ConnectionVars:
     def all_vars(self):
         return [self.omegaRefPu, self.terminal_V_re, self.terminal_V_im, *self.extra]
 
+    @classmethod
+    def from_lib(cls, lib):
+        try:
+            ext_vars = inspect_model_extvars(lib)
+        except Exception as e:
+            raise NotSupportedModel("Cannot read extvar file") from e
+        ext_var_names = [v.id.replace(".", "_") for v in ext_vars]
+        try:
+            omegaRefPu, terminal_V_re, terminal_V_im = infer_core_connection_vars(
+                lib, check_in_list=ext_var_names
+            )
+        except RuntimeError as e:
+            raise NotSupportedModel("Cannot infer core connection vars") from e
+        extra = []
+        for v in ext_vars:
+            v_name = v.id.replace(".", "_")
+            if v_name in (omegaRefPu, terminal_V_re, terminal_V_im):
+                continue
+            if v.optional or v.default_value:
+                continue
+            if v.type_value != VariableType.CONTINUOUS:
+                raise NotSupportedModel(f"Mandatory non-continuous var {v_name}")
+            extra.append(v_name)
+        return cls(
+            omegaRefPu=omegaRefPu,
+            terminal_V_re=terminal_V_re,
+            terminal_V_im=terminal_V_im,
+            extra=extra,
+        )
 
-def load_supported_models():
-    df = pd.read_csv(
-        PACKAGE_DIR / "supported_models.csv",
-        index_col="name",
-        dtype=str,
-        keep_default_na=False,
-    )
-    df["extra"] = df["extra"].apply(lambda x: x.split("|") if x else [])
-    return {_id: ConnectionVars(**row) for _id, row in df.iterrows()}
+    @classmethod
+    @cache
+    def from_lib_or_none(cls, lib):
+        try:
+            return cls.from_lib(lib)
+        except NotSupportedModel:
+            return None
 
 
 def solve_references(pset: ParametersSet, ref_value: dict):

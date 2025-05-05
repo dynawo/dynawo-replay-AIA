@@ -16,7 +16,6 @@ from .simulation import Case
 from .utils import (
     ConnectionVars,
     list_available_vars,
-    load_supported_models,
     postprocess_curve,
     reduce_curve,
     solve_references,
@@ -42,13 +41,10 @@ class ReplayableCase(Case):
 
     @cached_property
     def replayable_elements(self):
-        supported_models = load_supported_models()
         return {
-            bbm.id: ReplayableElement(
-                case=self, id=bbm.id, connections=supported_models.get(bbm.lib)
-            )
+            bbm.id: ReplayableElement(case=self, id=bbm.id, connections=connections)
             for bbm in self.dyd.black_box_model
-            if bbm.lib in supported_models
+            if (connections := ConnectionVars.from_lib_or_none(bbm.lib))
         }
 
     def generate_replayable_base(
@@ -149,6 +145,20 @@ class ReplayableCase(Case):
         """
         with self.replica(keep=keep_tmp) as rep:
             rep.crv.curve = [CurveInput(model=element_id, variable=v) for v in curves]
+            rep.job.outputs.curves.export_mode = "CSV"
+            rep.save()
+            rep.run()
+            return rep.read_output_curves()
+
+    def calculate_reference_curves_many_elements(
+        self, curves: list[tuple[str, str]], keep_tmp=False
+    ):
+        """
+        Same as `calculate_reference_curves` but supports multiple elements at once.
+        The list of curves received now consists in tuples (element_id, variable_name).
+        """
+        with self.replica(keep=keep_tmp) as rep:
+            rep.crv.curve = [CurveInput(model=e, variable=v) for e, v in curves]
             rep.job.outputs.curves.export_mode = "CSV"
             rep.save()
             rep.run()

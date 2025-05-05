@@ -12,3 +12,7 @@ class NotStabilizedCurve(Exception):
 
 class UnresolvedReference(Exception):
     "Indicates that a reference in the parameter set is missing in dumpInit."
+
+
+class NotSupportedModel(Exception):
+    "Indicated that the model is not supported for local replay"
