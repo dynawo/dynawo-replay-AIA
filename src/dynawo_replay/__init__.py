@@ -2,7 +2,7 @@ from .config import settings
 from .exceptions import (
     CaseNotPreparedForReplay,
     DynawoExecutionError,
-    NotStabilizedCurve,
+    NotSupportedModel,
 )
 from .replay import ReplayableCase
 from .simulation import Case
@@ -14,6 +14,6 @@ __all__ = [
     "settings",
     "CaseNotPreparedForReplay",
     "DynawoExecutionError",
-    "NotStabilizedCurve",
+    "NotSupportedModel",
     "list_available_vars",
 ]

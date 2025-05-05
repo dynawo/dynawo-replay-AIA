@@ -1,29 +1,24 @@
-import pytest
-
-from dynawo_replay.config import settings
 from dynawo_replay.schemas.curves_input import CurveInput
 from dynawo_replay.simulation import Case
 
-DYNAWO_EXAMPLES_FOLDER = settings.DYNAWO_HOME / "examples"
+
+def test_ieee14():
+    with Case("tests/data/IEEE14/IEEE14.jobs").replica() as case:
+        case.run()
 
 
-@pytest.mark.parametrize(
-    "jobsfile",
-    DYNAWO_EXAMPLES_FOLDER.glob("**/*.jobs"),
-    ids=lambda jobsfile: str(jobsfile.relative_to(DYNAWO_EXAMPLES_FOLDER)),
-)
-def test_dynawo_examples(jobsfile):
-    if "comparison" in jobsfile.parts:
-        pytest.skip("Bad formatted case")
-    try:
-        with Case(jobsfile).replica() as case:
-            case.run()
-    except NotImplementedError:
-        pytest.xfail("Not implemented")
+def test_ieee57():
+    with Case("tests/data/IEEE57/IEEE57.jobs").replica() as case:
+        case.run()
+
+
+def test_ieee118():
+    with Case("tests/data/IEEE118/IEEE118.jobs").replica() as case:
+        case.run()
 
 
 def test_change_curves_to_output():
-    with Case("data/IEEE57_Fault/IEEE57.jobs").replica() as case:
+    with Case("tests/data/IEEE57/IEEE57.jobs").replica() as case:
         new_curves = [
             CurveInput(model="GEN____6_SM", variable="generator_terminal_i_re"),
             CurveInput(model="GEN____6_SM", variable="generator_omegaRefPu_value"),
